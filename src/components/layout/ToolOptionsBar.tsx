@@ -42,7 +42,7 @@ export const ToolOptionsBar: React.FC = () => {
   };
 
   return (
-    <div className="h-9 bg-[#191b22] border-b border-[#252830] flex items-center px-3 text-xs text-[#a6acbc] space-x-4 select-none shrink-0 overflow-x-auto">
+    <div className="app-tooloptions h-9 bg-[#191b22] border-b border-[#252830] flex items-center px-3 text-xs text-[#a6acbc] space-x-4 select-none shrink-0 overflow-x-auto">
       {/* Tool Identification Badge */}
       <div className="flex items-center gap-1.5 text-white font-medium pr-3 border-r border-[#282d38]">
         {activeTool === "brush" && <Paintbrush className="w-3.5 h-3.5 text-cyan-400" />}

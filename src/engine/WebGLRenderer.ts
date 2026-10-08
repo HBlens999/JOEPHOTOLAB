@@ -1074,16 +1074,18 @@ export class WebGLRenderer {
       let b = d[i + 2];
 
       if (source) {
-        const pixel = i;
-        const sample = source[pixel] * 4;
-        const left = source[Math.max(0, pixel - 4)];
-        const right = source[Math.min(source.length - 4, pixel + 4)];
-        const up = source[Math.max(0, pixel - canvas.width * 4)];
-        const down = source[Math.min(source.length - 4, pixel + canvas.width * 4)];
-        r += (4 * source[pixel] - (left + right + up + down)) * (safe.sharpness / 100) * 1.5;
-        g += (4 * source[pixel + 1] - (source[pixel - 3 < 0 ? pixel + 1 : pixel - 3] + source[Math.min(source.length - 3, pixel + 5)] + source[Math.max(1, pixel - canvas.width * 4 + 1)] + source[Math.min(source.length - 3, pixel + canvas.width * 4 + 1)])) * (safe.sharpness / 100) * 1.5;
-        b += (4 * source[pixel + 2] - (source[pixel - 2 < 0 ? pixel + 2 : pixel - 2] + source[Math.min(source.length - 2, pixel + 6)] + source[Math.max(2, pixel - canvas.width * 4 + 2)] + source[Math.min(source.length - 2, pixel + canvas.width * 4 + 2)])) * (safe.sharpness / 100) * 1.5;
-        void sample; void left; void right; void up; void down;
+        const pixelNumber = i / 4;
+        const px = pixelNumber % canvas.width;
+        const py = Math.floor(pixelNumber / canvas.width);
+        const left = (py * canvas.width + Math.max(0, px - 1)) * 4;
+        const right = (py * canvas.width + Math.min(canvas.width - 1, px + 1)) * 4;
+        const up = (Math.max(0, py - 1) * canvas.width + px) * 4;
+        const down = (Math.min(canvas.height - 1, py + 1) * canvas.width + px) * 4;
+        const amount = (safe.sharpness / 100) * 1.5;
+
+        r += (4 * source[i] - (source[left] + source[right] + source[up] + source[down])) * amount;
+        g += (4 * source[i + 1] - (source[left + 1] + source[right + 1] + source[up + 1] + source[down + 1])) * amount;
+        b += (4 * source[i + 2] - (source[left + 2] + source[right + 2] + source[up + 2] + source[down + 2])) * amount;
       }
 
       r *= expMult; g *= expMult; b *= expMult;

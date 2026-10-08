@@ -928,7 +928,7 @@ export class WebGLRenderer {
           ctx.rotate((layer.rotation * Math.PI) / 180);
           ctx.translate(-cx, -cy);
         }
-        ctx.font = `${props.fontStyle} ${props.fontWeight} ${props.fontSize}px "${props.fontFamily}, sans-serif`;
+        ctx.font = `${props.fontStyle} ${props.fontWeight} ${props.fontSize}px "${props.fontFamily}", sans-serif`;
         ctx.fillStyle = props.fill || "#FFFFFF";
         ctx.textAlign = props.align || "left";
         ctx.textBaseline = "top";

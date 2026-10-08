@@ -531,34 +531,6 @@ export class WebGLRenderer {
           offCtx.stroke();
         }
         offCtx.restore();
-      } else if (layer.type === "shape" && layer.shapeProps) {
-        const props = layer.shapeProps;
-        ctx.save();
-        ctx.globalAlpha = layer.opacity;
-        ctx.globalCompositeOperation = this.mapBlendMode(layer.blendMode);
-        ctx.translate(layer.x + layer.width / 2, layer.y + layer.height / 2);
-        ctx.rotate((layer.rotation * Math.PI) / 180);
-        ctx.translate(-layer.width / 2, -layer.height / 2);
-        ctx.beginPath();
-        if (props.kind === "ellipse") {
-          ctx.ellipse(layer.width / 2, layer.height / 2, Math.abs(layer.width / 2), Math.abs(layer.height / 2), 0, 0, Math.PI * 2);
-        } else {
-          const r = Math.min(Math.max(0, props.cornerRadius), Math.min(layer.width, layer.height) / 2);
-          if (r > 0 && "roundRect" in ctx) ctx.roundRect(0, 0, layer.width, layer.height, r);
-          else ctx.rect(0, 0, layer.width, layer.height);
-        }
-        if (props.fillOpacity > 0) {
-          ctx.globalAlpha = layer.opacity * props.fillOpacity;
-          ctx.fillStyle = props.fill || "#000000";
-          ctx.fill();
-        }
-        if (props.strokeOpacity > 0 && props.strokeWidth > 0) {
-          ctx.globalAlpha = layer.opacity * props.strokeOpacity;
-          ctx.strokeStyle = props.stroke || "#000000";
-          ctx.lineWidth = props.strokeWidth;
-          ctx.stroke();
-        }
-        ctx.restore();
       } else if (layer.type === "text" && layer.textProps) {
         offCtx.save();
         offCtx.globalAlpha = layer.opacity;
@@ -648,100 +620,55 @@ export class WebGLRenderer {
   }
 
   /**
-   * Applies GPU shader adjustments to an individual layer canvas using FBO
+   * Applies adjustments to an individual raster layer.
+   *
+   * The editor's final composite is rendered through a 2D surface. Using the
+   * software adjustment path here keeps sliders deterministic across browsers
+   * and avoids GPU framebuffer/LUT state leaking into the image.
    */
   public renderAdjustedLayer(layer: Layer): HTMLCanvasElement {
     if (!layer.canvas) return document.createElement("canvas");
-    const adj = layer.adjustments;
-    // A freshly imported/created raster layer has identity adjustments. Do NOT
-    // send it through the GPU grading pipeline. This avoids LUT/FBO corruption
-    // and guarantees the source pixels are displayed exactly as imported.
-    if (!layer.aiMetadata && (!adj || !this.hasVisibleAdjustments(adj))) {
+    const defaults = getDefaultAdjustments();
+    const adj = layer.adjustments
+      ? {
+          ...defaults,
+          ...layer.adjustments,
+          vignette: { ...defaults.vignette, ...layer.adjustments.vignette },
+          levels: {
+            ...defaults.levels,
+            ...layer.adjustments.levels,
+            rgb: { ...defaults.levels.rgb, ...layer.adjustments.levels?.rgb },
+            red: { ...defaults.levels.red, ...layer.adjustments.levels?.red },
+            green: { ...defaults.levels.green, ...layer.adjustments.levels?.green },
+            blue: { ...defaults.levels.blue, ...layer.adjustments.levels?.blue },
+          },
+          curves: {
+            ...defaults.curves,
+            ...layer.adjustments.curves,
+            rgb: layer.adjustments.curves?.rgb?.length ? layer.adjustments.curves.rgb : defaults.curves.rgb,
+            red: layer.adjustments.curves?.red?.length ? layer.adjustments.curves.red : defaults.curves.red,
+            green: layer.adjustments.curves?.green?.length ? layer.adjustments.curves.green : defaults.curves.green,
+            blue: layer.adjustments.curves?.blue?.length ? layer.adjustments.curves.blue : defaults.curves.blue,
+          },
+          hsl: {
+            ...defaults.hsl,
+            ...layer.adjustments.hsl,
+          },
+          colorBalance: {
+            ...defaults.colorBalance,
+            ...layer.adjustments.colorBalance,
+            shadows: { ...defaults.colorBalance.shadows, ...layer.adjustments.colorBalance?.shadows },
+            midtones: { ...defaults.colorBalance.midtones, ...layer.adjustments.colorBalance?.midtones },
+            highlights: { ...defaults.colorBalance.highlights, ...layer.adjustments.colorBalance?.highlights },
+          },
+        }
+      : defaults;
+
+    if (!layer.aiMetadata && !this.hasVisibleAdjustments(adj)) {
       return layer.canvas;
     }
 
-    const gl = this.gl;
-    if (!gl || !this.program || !this.quadVAO) {
-      return this.applyAdjustmentsCanvas2D(layer.canvas, adj);
-    }
-
-    const w = layer.canvas.width;
-    const h = layer.canvas.height;
-
-    // Ensure FBO texture matches dimensions
-    if (!this.fboTexture || this.fboWidth !== w || this.fboHeight !== h) {
-      this.fboTexture = gl.createTexture();
-      gl.bindTexture(gl.TEXTURE_2D, this.fboTexture);
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-
-      gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo);
-      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.fboTexture, 0);
-      this.fboWidth = w;
-      this.fboHeight = h;
-    }
-
-    const inputTex = this.uploadLayerTexture(`layer_${layer.id}`, layer.canvas);
-    if (!inputTex) return layer.canvas;
-
-    // Bind FBO and viewport
-    gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo);
-    gl.viewport(0, 0, w, h);
-    gl.clearColor(0, 0, 0, 0);
-    gl.clear(gl.COLOR_BUFFER_BIT);
-
-    gl.useProgram(this.program);
-    gl.bindVertexArray(this.quadVAO);
-
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, inputTex);
-    gl.uniform1i(gl.getUniformLocation(this.program, "u_image"), 0);
-    gl.uniform2f(gl.getUniformLocation(this.program, "u_resolution"), w, h);
-
-    // Set adjustments uniforms
-    if (adj) {
-      this.setUniformsFromAdjustments(adj);
-    } else {
-      this.setUniformsIdentity();
-    }
-
-    gl.drawArrays(gl.TRIANGLES, 0, 6);
-
-    // Read pixels back to a canvas
-    const scratch = document.createElement("canvas");
-    scratch.width = w;
-    scratch.height = h;
-    const sCtx = scratch.getContext("2d");
-    if (!sCtx) {
-      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-      return layer.canvas;
-    }
-
-    const imgData = sCtx.createImageData(w, h);
-    gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, imgData.data);
-
-    // Flip Y because WebGL reads from bottom-left
-    const flippedData = sCtx.createImageData(w, h);
-    const rowBytes = w * 4;
-    for (let y = 0; y < h; y++) {
-      const srcRow = (h - 1 - y) * rowBytes;
-      const dstRow = y * rowBytes;
-      flippedData.data.set(imgData.data.subarray(srcRow, srcRow + rowBytes), dstRow);
-    }
-    sCtx.putImageData(flippedData, 0, 0);
-
-    // AI Blend Strength if configured
-    if (layer.aiMetadata && typeof layer.aiMetadata.aiBlendStrength === "number") {
-      sCtx.globalCompositeOperation = "destination-in";
-      sCtx.fillStyle = `rgba(0, 0, 0, ${layer.aiMetadata.aiBlendStrength / 100})`;
-      sCtx.fillRect(0, 0, w, h);
-    }
-
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    gl.bindVertexArray(null);
-
-    return scratch;
+    return this.applyAdjustmentsCanvas2D(layer.canvas, adj);
   }
 
   /**

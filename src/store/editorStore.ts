@@ -380,7 +380,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     get().pushHistory(`New ${kind === "ellipse" ? "Ellipse" : "Rectangle"}`);
     const doc = get().document;
     const newLayer: Layer = {
-      id: `shape_${Date.now()}`,
+      id: `shape_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
       name: kind === "ellipse" ? "Ellipse" : "Rectangle",
       type: "shape",
       visible: true,
@@ -396,7 +396,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       scaleY: 1,
       shapeProps: {
         kind,
-        fill: "#ffffff",
+        fill: get().brushSettings.color || "#ffffff",
         fillOpacity: 1,
         stroke: "#000000",
         strokeOpacity: 1,
@@ -1863,7 +1863,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           resolution: 300,
           colorSpace: "Display-P3",
           bitDepth: 16,
-          backgroundColor: "#121316",
+          backgroundColor: "#ffffff",
           layers: [rawLayer],
           activeLayerId: rawLayer.id,
           selectedLayerIds: [rawLayer.id],
@@ -1920,7 +1920,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           resolution: 300,
           colorSpace: "sRGB",
           bitDepth: 8,
-          backgroundColor: "#121316",
+          backgroundColor: "#ffffff",
           layers: psdResult.layers,
           activeLayerId: psdResult.layers[0]?.id || null,
           selectedLayerIds: psdResult.layers[0]?.id ? [psdResult.layers[0].id] : [],
@@ -1976,7 +1976,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           resolution: parsed.resolution || 300,
           colorSpace: parsed.colorSpace || "sRGB",
           bitDepth: parsed.bitDepth || 8,
-          backgroundColor: parsed.backgroundColor || "#121316",
+          backgroundColor: parsed.backgroundColor || "#ffffff",
           layers: restoredLayers,
           activeLayerId: restoredLayers[0]?.id || null,
           selectedLayerIds: restoredLayers[0]?.id ? [restoredLayers[0].id] : [],
@@ -2057,7 +2057,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           resolution: 300,
           colorSpace: "sRGB",
           bitDepth: 8,
-          backgroundColor: "transparent",
+          backgroundColor: "#ffffff",
           layers: [newLayer],
           activeLayerId: layerId,
           selectedLayerIds: [layerId],

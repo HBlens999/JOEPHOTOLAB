@@ -78,6 +78,22 @@ export const Workspace: React.FC = () => {
   // Spacebar and Alt key listeners
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Never turn characters typed into text/number inputs, textareas, or
+      // contenteditable elements into editor shortcuts. This is critical for
+      // text editing: typing "BOY" must produce BOY, not trigger B/O/Y tools.
+      const target = e.target as HTMLElement | null;
+      const isTypingTarget =
+        !!target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.isContentEditable);
+
+      if (isTypingTarget) {
+        if (e.code === "Space" && !isSpacePressed) setIsSpacePressed(true);
+        if (e.key === "Alt") setIsAltPressed(true);
+        return;
+      }
+
       if (e.code === "Space" && !isSpacePressed) {
         setIsSpacePressed(true);
       }
@@ -521,19 +537,16 @@ export const Workspace: React.FC = () => {
           transformOrigin: "center center",
         }}
       >
-        {/* Transparent Checkerboard Pattern Underlay */}
+        {/* White document surface. Transparency is still represented by
+            the document's actual backgroundColor; the default editor document
+            is intentionally white, not the old dark checkerboard. */}
         <div
-          className="absolute inset-0 pointer-events-none"
+          className="absolute inset-0 pointer-events-none bg-white"
           style={{
-            backgroundImage: `
-              linear-gradient(45deg, #181a20 25%, transparent 25%),
-              linear-gradient(-45deg, #181a20 25%, transparent 25%),
-              linear-gradient(45deg, transparent 75%, #181a20 75%),
-              linear-gradient(-45deg, transparent 75%, #181a20 75%)
-            `,
-            backgroundSize: "20px 20px",
-            backgroundPosition: "0 0, 0 10px, 10px -10px, -10px 0px",
-            backgroundColor: "#12141a",
+            backgroundColor:
+              doc.backgroundColor && doc.backgroundColor !== "transparent"
+                ? doc.backgroundColor
+                : "#ffffff",
           }}
         />
 
@@ -670,7 +683,9 @@ export const Workspace: React.FC = () => {
               onBlur={() => setEditingTextLayerId(null)}
               onKeyDown={(e) => {
                 if (e.key === "Escape") {
+                  e.stopPropagation();
                   setEditingTextLayerId(null);
+                  return;
                 }
               }}
               onPointerDown={(e) => e.stopPropagation()}

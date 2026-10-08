@@ -53,7 +53,7 @@ export async function saveDocumentToIDB(doc: PhotoDocument): Promise<void> {
     );
 
     const record = {
-      id: doc.id || "current_session_doc",
+      id: CURRENT_SESSION_ID,
       name: doc.name,
       width: doc.width,
       height: doc.height,
@@ -89,7 +89,7 @@ export async function saveDocumentToIDB(doc: PhotoDocument): Promise<void> {
 /**
  * Loads document from IndexedDB
  */
-export async function loadDocumentFromIDB(id: string = "current_session_doc"): Promise<PhotoDocument | null> {
+export async function loadDocumentFromIDB(id: string = CURRENT_SESSION_ID): Promise<PhotoDocument | null> {
   try {
     const db = await openDB();
     const record: any = await new Promise((resolve, reject) => {

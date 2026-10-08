@@ -31,6 +31,7 @@ export const ToolOptionsBar: React.FC = () => {
     updateTextLayer,
     textSettings,
     setTextSettings,
+    updateShapeLayer,
   } = useEditorStore();
 
   const activeLayer = doc.layers.find((l) => l.id === doc.activeLayerId);
@@ -169,6 +170,60 @@ export const ToolOptionsBar: React.FC = () => {
                 {cloneSettings.sourceX !== null ? "Source Locked" : "Alt+Click to set source point"}
               </span>
             </div>
+          )}
+        </div>
+      )}
+
+      {/* Shape Tool Options */}
+      {["shape-rect", "shape-ellipse"].includes(activeTool) && (
+        <div className="flex items-center gap-3">
+          <span className="text-[11px] text-[#7a8192]">Fill</span>
+          <input
+            type="color"
+            value={activeLayer?.type === "shape" ? activeLayer.shapeProps?.fill || "#ffffff" : "#ffffff"}
+            onChange={(e) => activeLayer?.type === "shape" && updateShapeLayer(activeLayer.id, { fill: e.target.value })}
+            className="w-6 h-6 rounded border border-[#343a49] bg-transparent cursor-pointer"
+            title="Fill color"
+          />
+          <span className="text-[11px] text-[#7a8192]">Fill opacity</span>
+          <input
+            type="range" min="0" max="1" step="0.01"
+            value={activeLayer?.type === "shape" ? activeLayer.shapeProps?.fillOpacity ?? 1 : 1}
+            onChange={(e) => activeLayer?.type === "shape" && updateShapeLayer(activeLayer.id, { fillOpacity: Number(e.target.value) })}
+            className="w-16 accent-cyan-500"
+          />
+          <span className="text-[11px] text-[#7a8192]">Outline</span>
+          <input
+            type="color"
+            value={activeLayer?.type === "shape" ? activeLayer.shapeProps?.stroke || "#000000" : "#000000"}
+            onChange={(e) => activeLayer?.type === "shape" && updateShapeLayer(activeLayer.id, { stroke: e.target.value })}
+            className="w-6 h-6 rounded border border-[#343a49] bg-transparent cursor-pointer"
+            title="Outline color"
+          />
+          <span className="text-[11px] text-[#7a8192]">Width</span>
+          <input
+            type="number" min="0" max="100"
+            value={activeLayer?.type === "shape" ? activeLayer.shapeProps?.strokeWidth ?? 2 : 2}
+            onChange={(e) => activeLayer?.type === "shape" && updateShapeLayer(activeLayer.id, { strokeWidth: Math.max(0, Number(e.target.value) || 0) })}
+            className="w-14 bg-[#232733] border border-[#343a49] text-[11px] text-white rounded px-1.5 py-1"
+          />
+          <span className="text-[11px] text-[#7a8192]">Outline opacity</span>
+          <input
+            type="range" min="0" max="1" step="0.01"
+            value={activeLayer?.type === "shape" ? activeLayer.shapeProps?.strokeOpacity ?? 1 : 1}
+            onChange={(e) => activeLayer?.type === "shape" && updateShapeLayer(activeLayer.id, { strokeOpacity: Number(e.target.value) })}
+            className="w-16 accent-cyan-500"
+          />
+          {activeTool === "shape-rect" && (
+            <>
+              <span className="text-[11px] text-[#7a8192]">Radius</span>
+              <input
+                type="number" min="0" max="500"
+                value={activeLayer?.type === "shape" ? activeLayer.shapeProps?.cornerRadius ?? 0 : 0}
+                onChange={(e) => activeLayer?.type === "shape" && updateShapeLayer(activeLayer.id, { cornerRadius: Math.max(0, Number(e.target.value) || 0) })}
+                className="w-14 bg-[#232733] border border-[#343a49] text-[11px] text-white rounded px-1.5 py-1"
+              />
+            </>
           )}
         </div>
       )}

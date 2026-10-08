@@ -787,8 +787,8 @@ export const Workspace: React.FC = () => {
               return (
                 <div
                   key={handle}
-                  className={`absolute ${positionClass} w-4 h-4 sm:w-3 sm:h-3 bg-white border-2 border-cyan-600 rounded-sm pointer-events-auto touch-none`}
-                  style={{ cursor }}
+                  className={`absolute ${positionClass[handle]} w-4 h-4 sm:w-3 sm:h-3 bg-white border-2 border-cyan-600 rounded-sm pointer-events-auto touch-none`}
+                  style={{ cursor: cursor[handle] }}
                   role="button"
                   aria-label={`Resize ${handle} handle`}
                   onPointerDown={(e) => {
@@ -808,7 +808,7 @@ export const Workspace: React.FC = () => {
                       width: layer.width,
                       height: layer.height,
                     };
-                    setResizeHandle(handle as ResizeHandle);
+                    setResizeHandle(handle);
                     setIsPointerDown(true);
                     (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
                   }}

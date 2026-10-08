@@ -1998,10 +1998,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       }
     }
 
-    // Standard raster image import (PNG/JPG/JPEG/WebP/GIF/BMP and browser-decodable formats).
-    // Use object URLs instead of FileReader data URLs. This is faster, avoids
-    // large base64 strings, and gives drag/drop and file-picker imports exactly
-    // the same decoding path.
+    // Standard raster image import (PNG/JPG/JPEG/WebP/GIF/BMP and other browser-decodable images).
+    // Place the source at its native pixel dimensions as a new layer in the
+    // current document. The view may be zoomed, but the layer itself is never
+    // downscaled or resized during import.
     try {
       if (!file.type.startsWith("image/")) {
         get().showNotification("Please choose a PNG, JPG, JPEG, WebP, GIF or other browser-supported image.", "warning");
@@ -2027,6 +2027,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         const height = img.naturalHeight;
         if (!width || !height) throw new Error("Image has no usable dimensions.");
 
+        // Canvas dimensions and layer dimensions stay exactly at the source
+        // image's natural pixel size. There is intentionally no fit-to-screen
+        // scaling and no drawImage resize operation here.
         const canvas = document.createElement("canvas");
         canvas.width = width;
         canvas.height = height;
@@ -2035,9 +2038,17 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         if (!ctx) throw new Error("Could not create an image canvas.");
 
         ctx.clearRect(0, 0, width, height);
-        ctx.drawImage(img, 0, 0, width, height);
+        ctx.drawImage(img, 0, 0);
 
         const layerId = `layer_imported_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        const currentDoc = get().document;
+
+        // Center the native-size layer inside the current document. Negative
+        // coordinates are allowed when the source image is larger than the
+        // document, just like placing an oversized image in a desktop editor.
+        const x = Math.round((currentDoc.width - width) / 2);
+        const y = Math.round((currentDoc.height - height) / 2);
+
         const newLayer: Layer = {
           id: layerId,
           name: file.name.substring(0, 80),
@@ -2046,8 +2057,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           locked: false,
           opacity: 1,
           blendMode: "normal",
-          x: 0,
-          y: 0,
+          x,
+          y,
           width,
           height,
           rotation: 0,
@@ -2057,32 +2068,18 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           adjustments: getDefaultAdjustments(),
         };
 
-        const viewportWidth = Math.max(480, window.innerWidth - 360);
-        const viewportHeight = Math.max(320, window.innerHeight - 140);
-        const fitZoom = Math.min(
-          1,
-          viewportWidth / width,
-          viewportHeight / height
-        );
+        get().pushHistory("Place Image");
 
         const newDoc: PhotoDocument = {
-          id: `doc_imported_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-          name: file.name,
-          width,
-          height,
-          resolution: 300,
-          colorSpace: "sRGB",
-          bitDepth: 8,
-          backgroundColor: "#ffffff",
-          layers: [newLayer],
+          ...currentDoc,
+          layers: [newLayer, ...currentDoc.layers],
           activeLayerId: layerId,
           selectedLayerIds: [layerId],
-          guides: [],
-          rulers: true,
-          grid: { visible: false, size: 24 },
-          zoom: Math.max(0.05, fitZoom),
-          panX: 0,
-          panY: 0,
+          // Keep the user's current zoom and pan. Importing an image must not
+          // silently change how the document is viewed.
+          zoom: currentDoc.zoom,
+          panX: currentDoc.panX,
+          panY: currentDoc.panY,
         };
 
         set({
@@ -2093,20 +2090,23 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         try {
           await saveDocumentToIDB(newDoc);
         } catch (saveError) {
-          console.warn("Image imported but session save failed:", saveError);
+          console.warn("Image placed but session save failed:", saveError);
         }
+
+        get().showNotification(
+          `Placed ${file.name} at native size ${width} × ${height}px.`,
+          "success"
+        );
       } finally {
         URL.revokeObjectURL(objectUrl);
       }
     } catch (err: any) {
       console.error("Image import failed:", err);
       get().showNotification(
-        `Could not import image: ${err?.message || "unsupported or corrupted image"}`,
+        `Could not place image: ${err?.message || "unsupported or corrupted image"}`,
         "error"
       );
-    }
-  },
-
+    },
   exportProject: () => {
     exportProjectJPL(get().document);
   },

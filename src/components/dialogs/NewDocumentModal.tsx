@@ -8,7 +8,7 @@ export const NewDocumentModal: React.FC = () => {
   const [name, setName] = useState("Untitled-1");
   const [width, setWidth] = useState(1920);
   const [height, setHeight] = useState(1080);
-  const [backgroundColor, setBackgroundColor] = useState("#12141a");
+  const [backgroundColor, setBackgroundColor] = useState("#ffffff");
 
   if (!isNewDocModalOpen) return null;
 
@@ -113,8 +113,8 @@ export const NewDocumentModal: React.FC = () => {
             <label className="block text-slate-200 font-medium mb-1.5">Background</label>
             <div className="flex gap-2">
               {[
-                { label: "Dark Gray", val: "#12141a" },
                 { label: "White", val: "#ffffff" },
+                { label: "Light Gray", val: "#f3f4f6" },
                 { label: "Black", val: "#000000" },
                 { label: "Transparent", val: "transparent" },
               ].map((bg) => (

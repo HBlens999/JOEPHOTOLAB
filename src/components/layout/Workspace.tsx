@@ -337,8 +337,7 @@ export const Workspace: React.FC = () => {
     // Text tool: select an existing text layer instead of creating another one.
     // A double-click then enters inline editing mode.
     if (activeTool === "text") {
-      const hit = [...doc.layers]
-        .reverse()
+      const hit = doc.layers
         .find((layer) =>
           layer.type === "text" &&
           layer.visible &&
@@ -549,8 +548,7 @@ export const Workspace: React.FC = () => {
   const handleDoubleClick = (e: React.MouseEvent) => {
     if (activeTool !== "text") return;
     const { x, y } = clientToDocCoords(e.clientX, e.clientY);
-    const hit = [...doc.layers]
-      .reverse()
+    const hit = doc.layers
       .find((layer) =>
         layer.type === "text" &&
         layer.visible &&

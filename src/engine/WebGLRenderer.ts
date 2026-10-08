@@ -836,6 +836,8 @@ export class WebGLRenderer {
    * Pure Canvas 2D fallback compositing pipeline
    */
   public renderCanvas2DFallback(doc: PhotoDocument, targetCanvas: HTMLCanvasElement) {
+    targetCanvas.width = doc.width;
+    targetCanvas.height = doc.height;
     const ctx = targetCanvas.getContext("2d");
     if (!ctx) return;
 
@@ -851,24 +853,86 @@ export class WebGLRenderer {
     for (const layer of reversedLayers) {
       if (!layer.visible || layer.opacity <= 0) continue;
 
+      if (layer.type === "adjustment" && layer.adjustments) {
+        this.applyAdjustmentLayerToComposite(layer, targetCanvas);
+        continue;
+      }
+
       ctx.save();
       ctx.globalAlpha = layer.opacity;
       ctx.globalCompositeOperation = this.mapBlendMode(layer.blendMode);
 
       if ((layer.type === "raster" || layer.type === "ai") && layer.canvas) {
-        const adjustedCanvas = this.applyAdjustmentsCanvas2D(layer.canvas, layer.adjustments);
+        const adjustedCanvas = this.renderAdjustedLayer(layer);
+        if (layer.rotation) {
+          const cx = layer.x + layer.width / 2;
+          const cy = layer.y + layer.height / 2;
+          ctx.translate(cx, cy);
+          ctx.rotate((layer.rotation * Math.PI) / 180);
+          ctx.translate(-cx, -cy);
+        }
         ctx.drawImage(adjustedCanvas, layer.x, layer.y, layer.width, layer.height);
+
+        if (layer.mask?.enabled && layer.mask.canvas) {
+          ctx.globalCompositeOperation = "destination-in";
+          ctx.drawImage(layer.mask.canvas, layer.x, layer.y, layer.width, layer.height);
+        }
+      } else if (layer.type === "shape" && layer.shapeProps) {
+        const props = layer.shapeProps;
+        const cx = layer.x + layer.width / 2;
+        const cy = layer.y + layer.height / 2;
+        ctx.translate(cx, cy);
+        ctx.rotate((layer.rotation * Math.PI) / 180);
+        ctx.translate(-layer.width / 2, -layer.height / 2);
+
+        ctx.beginPath();
+        if (props.kind === "ellipse") {
+          ctx.ellipse(
+            layer.width / 2,
+            layer.height / 2,
+            Math.abs(layer.width / 2),
+            Math.abs(layer.height / 2),
+            0,
+            0,
+            Math.PI * 2
+          );
+        } else {
+          const radius = Math.min(
+            Math.max(0, props.cornerRadius || 0),
+            Math.min(layer.width, layer.height) / 2
+          );
+          if (radius > 0 && "roundRect" in ctx) {
+            ctx.roundRect(0, 0, layer.width, layer.height, radius);
+          } else {
+            ctx.rect(0, 0, layer.width, layer.height);
+          }
+        }
+
+        if ((props.fillOpacity ?? 1) > 0) {
+          ctx.globalAlpha = layer.opacity * (props.fillOpacity ?? 1);
+          ctx.fillStyle = props.fill || "#ffffff";
+          ctx.fill();
+        }
+        if ((props.strokeOpacity ?? 1) > 0 && (props.strokeWidth ?? 0) > 0) {
+          ctx.globalAlpha = layer.opacity * (props.strokeOpacity ?? 1);
+          ctx.strokeStyle = props.stroke || "#000000";
+          ctx.lineWidth = props.strokeWidth;
+          ctx.stroke();
+        }
       } else if (layer.type === "text" && layer.textProps) {
         const props = layer.textProps;
-        ctx.font = `${props.fontStyle} ${props.fontWeight} ${props.fontSize}px "${props.fontFamily}", sans-serif`;
+        if (layer.rotation) {
+          const cx = layer.x + layer.width / 2;
+          const cy = layer.y + layer.height / 2;
+          ctx.translate(cx, cy);
+          ctx.rotate((layer.rotation * Math.PI) / 180);
+          ctx.translate(-cx, -cy);
+        }
+        ctx.font = `${props.fontStyle} ${props.fontWeight} ${props.fontSize}px "${props.fontFamily}, sans-serif`;
         ctx.fillStyle = props.fill || "#FFFFFF";
         ctx.textAlign = props.align || "left";
         ctx.textBaseline = "top";
         ctx.fillText(props.text, layer.x, layer.y);
-      } else if (layer.type === "adjustment" && layer.adjustments) {
-        // Apply adjustment layer to current composite in 2D
-        const adjusted = this.applyAdjustmentsCanvas2D(targetCanvas, layer.adjustments);
-        ctx.drawImage(adjusted, 0, 0);
       }
 
       ctx.restore();
@@ -880,6 +944,38 @@ export class WebGLRenderer {
    */
   private applyAdjustmentsCanvas2D(canvas: HTMLCanvasElement, adj?: AdjustmentSettings): HTMLCanvasElement {
     if (!adj) return canvas;
+
+    const defaults = getDefaultAdjustments();
+    const safe: AdjustmentSettings = {
+      ...defaults,
+      ...adj,
+      vignette: { ...defaults.vignette, ...(adj.vignette || {}) },
+      levels: {
+        ...defaults.levels,
+        ...(adj.levels || {}),
+        rgb: { ...defaults.levels.rgb, ...(adj.levels?.rgb || {}) },
+        red: { ...defaults.levels.red, ...(adj.levels?.red || {}) },
+        green: { ...defaults.levels.green, ...(adj.levels?.green || {}) },
+        blue: { ...defaults.levels.blue, ...(adj.levels?.blue || {}) },
+      },
+      curves: {
+        ...defaults.curves,
+        ...(adj.curves || {}),
+        rgb: adj.curves?.rgb?.length ? adj.curves.rgb : defaults.curves.rgb,
+        red: adj.curves?.red?.length ? adj.curves.red : defaults.curves.red,
+        green: adj.curves?.green?.length ? adj.curves.green : defaults.curves.green,
+        blue: adj.curves?.blue?.length ? adj.curves.blue : defaults.curves.blue,
+      },
+      hsl: { ...defaults.hsl, ...(adj.hsl || {}) },
+      colorBalance: {
+        ...defaults.colorBalance,
+        ...(adj.colorBalance || {}),
+        shadows: { ...defaults.colorBalance.shadows, ...(adj.colorBalance?.shadows || {}) },
+        midtones: { ...defaults.colorBalance.midtones, ...(adj.colorBalance?.midtones || {}) },
+        highlights: { ...defaults.colorBalance.highlights, ...(adj.colorBalance?.highlights || {}) },
+      },
+    };
+
     const scratch = document.createElement("canvas");
     scratch.width = canvas.width;
     scratch.height = canvas.height;
@@ -889,117 +985,191 @@ export class WebGLRenderer {
     sCtx.drawImage(canvas, 0, 0);
     const imgData = sCtx.getImageData(0, 0, canvas.width, canvas.height);
     const d = imgData.data;
+    const source = safe.sharpness > 0 ? new Uint8ClampedArray(d) : null;
 
-    const expMult = Math.pow(2.0, adj.exposure);
-    const brightAdd = adj.brightness * 1.28;
-    const contMult = (adj.contrast + 100) / 100;
-    const satMult = 1.0 + adj.saturation / 100.0;
-    const tempShift = (adj.temperature / 100.0) * 45;
-    const tintShift = (adj.tint / 100.0) * 35;
-    const hlFactor = adj.highlights / 100.0;
-    const shFactor = adj.shadows / 100.0;
+    const expMult = Math.pow(2.0, safe.exposure);
+    const brightAdd = safe.brightness * 1.28;
+    const contMult = (safe.contrast + 100) / 100;
+    const satMult = 1.0 + safe.saturation / 100.0;
+    const tempShift = (safe.temperature / 100.0) * 45;
+    const tintShift = (safe.tint / 100.0) * 35;
+    const hlFactor = safe.highlights / 100.0;
+    const shFactor = safe.shadows / 100.0;
+    const vib = safe.vibrance / 100.0;
 
-    // Precompute Curves LUTs
-    const lutR = buildCurveLUT(adj.curves.red.length > 0 ? adj.curves.red : adj.curves.rgb);
-    const lutG = buildCurveLUT(adj.curves.green.length > 0 ? adj.curves.green : adj.curves.rgb);
-    const lutB = buildCurveLUT(adj.curves.blue.length > 0 ? adj.curves.blue : adj.curves.rgb);
+    const lutR = buildCurveLUT(safe.curves.red.length > 0 ? safe.curves.red : safe.curves.rgb);
+    const lutG = buildCurveLUT(safe.curves.green.length > 0 ? safe.curves.green : safe.curves.rgb);
+    const lutB = buildCurveLUT(safe.curves.blue.length > 0 ? safe.curves.blue : safe.curves.rgb);
 
-    // Levels parameters
-    const rInB = adj.levels.red.black;
-    const rInW = adj.levels.red.white;
-    const rGam = adj.levels.red.gamma;
-    const gInB = adj.levels.green.black;
-    const gInW = adj.levels.green.white;
-    const gGam = adj.levels.green.gamma;
-    const bInB = adj.levels.blue.black;
-    const bInW = adj.levels.blue.white;
-    const bGam = adj.levels.blue.gamma;
+    const applyLevels = (value: number, levels: { black: number; gamma: number; white: number }) => {
+      const inputRange = Math.max(1, levels.white - levels.black);
+      const normalized = Math.max(0, Math.min(1, (value - levels.black) / inputRange));
+      const gamma = Math.max(0.1, levels.gamma || 1);
+      return Math.max(0, Math.min(255, Math.pow(normalized, 1 / gamma) * 255));
+    };
 
-    const rgbInB = adj.levels.rgb.black;
-    const rgbInW = adj.levels.rgb.white;
-    const rgbGam = adj.levels.rgb.gamma;
+    const hueDist = (a: number, b: number) => {
+      const d = Math.abs(a - b);
+      return Math.min(d, 360 - d);
+    };
 
-    // Color Balance
-    const cb = adj.colorBalance;
+    const rgbToHsl = (r8: number, g8: number, b8: number) => {
+      const r = r8 / 255;
+      const g = g8 / 255;
+      const b = b8 / 255;
+      const max = Math.max(r, g, b);
+      const min = Math.min(r, g, b);
+      const delta = max - min;
+      let h = 0;
+      const l = (max + min) / 2;
+      if (delta > 0.000001) {
+        const s = l > 0.5 ? delta / (2 - max - min) : delta / (max + min);
+        if (max === r) h = ((g - b) / delta + (g < b ? 6 : 0)) / 6;
+        else if (max === g) h = ((b - r) / delta + 2) / 6;
+        else h = ((r - g) / delta + 4) / 6;
+        return { h: h * 360, s, l };
+      }
+      return { h: 0, s: 0, l };
+    };
+
+    const hue2rgb = (p: number, q: number, t: number) => {
+      let x = t;
+      if (x < 0) x += 1;
+      if (x > 1) x -= 1;
+      if (x < 1 / 6) return p + (q - p) * 6 * x;
+      if (x < 1 / 2) return q;
+      if (x < 2 / 3) return p + (q - p) * (2 / 3 - x) * 6;
+      return p;
+    };
+
+    const hslToRgb = (h: number, s: number, l: number) => {
+      const hh = ((h % 360) + 360) % 360 / 360;
+      if (s <= 0.000001) {
+        const value = Math.round(l * 255);
+        return [value, value, value] as const;
+      }
+      const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+      const p = 2 * l - q;
+      return [
+        Math.round(hue2rgb(p, q, hh + 1 / 3) * 255),
+        Math.round(hue2rgb(p, q, hh) * 255),
+        Math.round(hue2rgb(p, q, hh - 1 / 3) * 255),
+      ] as const;
+    };
+
+    const hslChannels = [
+      { key: "reds", center: 0, width: 35 },
+      { key: "oranges", center: 30, width: 30 },
+      { key: "yellows", center: 60, width: 35 },
+      { key: "greens", center: 120, width: 50 },
+      { key: "aquas", center: 180, width: 45 },
+      { key: "blues", center: 240, width: 50 },
+      { key: "purples", center: 280, width: 40 },
+      { key: "magentas", center: 320, width: 40 },
+    ] as const;
 
     for (let i = 0; i < d.length; i += 4) {
       let r = d[i];
       let g = d[i + 1];
       let b = d[i + 2];
 
-      // 1. Exposure
-      r *= expMult;
-      g *= expMult;
-      b *= expMult;
+      if (source) {
+        const pixel = i;
+        const sample = source[pixel] * 4;
+        const left = source[Math.max(0, pixel - 4)];
+        const right = source[Math.min(source.length - 4, pixel + 4)];
+        const up = source[Math.max(0, pixel - canvas.width * 4)];
+        const down = source[Math.min(source.length - 4, pixel + canvas.width * 4)];
+        r += (4 * source[pixel] - (left + right + up + down)) * (safe.sharpness / 100) * 1.5;
+        g += (4 * source[pixel + 1] - (source[pixel - 3 < 0 ? pixel + 1 : pixel - 3] + source[Math.min(source.length - 3, pixel + 5)] + source[Math.max(1, pixel - canvas.width * 4 + 1)] + source[Math.min(source.length - 3, pixel + canvas.width * 4 + 1)])) * (safe.sharpness / 100) * 1.5;
+        b += (4 * source[pixel + 2] - (source[pixel - 2 < 0 ? pixel + 2 : pixel - 2] + source[Math.min(source.length - 2, pixel + 6)] + source[Math.max(2, pixel - canvas.width * 4 + 2)] + source[Math.min(source.length - 2, pixel + canvas.width * 4 + 2)])) * (safe.sharpness / 100) * 1.5;
+        void sample; void left; void right; void up; void down;
+      }
 
-      // 2. Brightness & Contrast
-      r += brightAdd;
-      g += brightAdd;
-      b += brightAdd;
+      r *= expMult; g *= expMult; b *= expMult;
 
+      r += brightAdd; g += brightAdd; b += brightAdd;
       r = (r - 128) * contMult + 128;
       g = (g - 128) * contMult + 128;
       b = (b - 128) * contMult + 128;
 
-      // 3. Highlights & Shadows
       let lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
       if (hlFactor !== 0 && lum > 120) {
-        const mask = (lum - 120) / 135;
+        const mask = Math.max(0, Math.min(1, (lum - 120) / 135));
         r += hlFactor * 40 * mask;
         g += hlFactor * 40 * mask;
         b += hlFactor * 40 * mask;
       }
       if (shFactor !== 0 && lum < 140) {
-        const mask = (140 - lum) / 140;
+        const mask = Math.max(0, Math.min(1, (140 - lum) / 140));
         r += shFactor * 40 * mask;
         g += shFactor * 40 * mask;
         b += shFactor * 40 * mask;
       }
 
-      // 4. White Balance (Temp & Tint)
       r += tempShift;
       b -= tempShift;
       g += tintShift;
 
-      // 5. Saturation
       lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
       r = lum + (r - lum) * satMult;
       g = lum + (g - lum) * satMult;
       b = lum + (b - lum) * satMult;
 
-      // Clamp before non-linear mappings
-      r = Math.min(255, Math.max(0, r));
-      g = Math.min(255, Math.max(0, g));
-      b = Math.min(255, Math.max(0, b));
-
-      // 6. Levels: Channel & Master
-      if (rInB > 0 || rInW < 255 || rGam !== 1) {
-        r = Math.min(255, Math.max(0, Math.pow(Math.max(0, r - rInB) / Math.max(1, rInW - rInB), 1 / rGam) * 255));
-      }
-      if (gInB > 0 || gInW < 255 || gGam !== 1) {
-        g = Math.min(255, Math.max(0, Math.pow(Math.max(0, g - gInB) / Math.max(1, gInW - gInB), 1 / gGam) * 255));
-      }
-      if (bInB > 0 || bInW < 255 || bGam !== 1) {
-        b = Math.min(255, Math.max(0, Math.pow(Math.max(0, b - bInB) / Math.max(1, bInW - bInB), 1 / bGam) * 255));
-      }
-      if (rgbInB > 0 || rgbInW < 255 || rgbGam !== 1) {
-        r = Math.min(255, Math.max(0, Math.pow(Math.max(0, r - rgbInB) / Math.max(1, rgbInW - rgbInB), 1 / rgbGam) * 255));
-        g = Math.min(255, Math.max(0, Math.pow(Math.max(0, g - rgbInB) / Math.max(1, rgbInW - rgbInB), 1 / rgbGam) * 255));
-        b = Math.min(255, Math.max(0, Math.pow(Math.max(0, b - rgbInB) / Math.max(1, rgbInW - rgbInB), 1 / rgbGam) * 255));
+      if (Math.abs(vib) > 0.000001) {
+        const maxC = Math.max(r, g, b);
+        const minC = Math.min(r, g, b);
+        const sat = (maxC - minC) / (maxC + 0.001);
+        const factor = (1 - Math.max(0, Math.min(1, sat))) * vib;
+        r = lum + (r - lum) * (1 + factor);
+        g = lum + (g - lum) * (1 + factor);
+        b = lum + (b - lum) * (1 + factor);
       }
 
-      // 7. Curves lookup
-      r = lutR[Math.round(r)];
-      g = lutG[Math.round(g)];
-      b = lutB[Math.round(b)];
+      r = Math.max(0, Math.min(255, r));
+      g = Math.max(0, Math.min(255, g));
+      b = Math.max(0, Math.min(255, b));
 
-      // 8. Color Balance
+      r = applyLevels(r, safe.levels.red);
+      g = applyLevels(g, safe.levels.green);
+      b = applyLevels(b, safe.levels.blue);
+      r = applyLevels(r, safe.levels.rgb);
+      g = applyLevels(g, safe.levels.rgb);
+      b = applyLevels(b, safe.levels.rgb);
+
+      r = lutR[Math.max(0, Math.min(255, Math.round(r)))];
+      g = lutG[Math.max(0, Math.min(255, Math.round(g)))];
+      b = lutB[Math.max(0, Math.min(255, Math.round(b)))];
+
+      // HSL master + color bands.
+      let hsl = rgbToHsl(r, g, b);
+      const master = safe.hsl.master;
+      hsl.h += master.hue;
+      hsl.s = Math.max(0, Math.min(1, hsl.s + master.sat / 100));
+      hsl.l = Math.max(0, Math.min(1, hsl.l + master.lum / 100));
+
+      for (const band of hslChannels) {
+        const params = safe.hsl[band.key];
+        if (!params || (params.hue === 0 && params.sat === 0 && params.lum === 0)) continue;
+        const distance = hueDist(hsl.h, band.center);
+        if (distance < band.width) {
+          const weight = (0.5 + 0.5 * Math.cos(Math.PI * distance / band.width)) *
+            Math.max(0, Math.min(1, (hsl.s - 0.05) / 0.20));
+          hsl.h += params.hue * weight;
+          hsl.s = Math.max(0, Math.min(1, hsl.s + (params.sat / 100) * weight));
+          hsl.l = Math.max(0, Math.min(1, hsl.l + (params.lum / 100) * weight));
+        }
+      }
+
+      [r, g, b] = hslToRgb(hsl.h, hsl.s, hsl.l);
+
       const origL = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-      const normL = origL / 255.0;
+      const normL = origL / 255;
       const wSh = Math.max(0, Math.min(1, (0.35 - normL) / 0.35));
       const wHi = Math.max(0, Math.min(1, (normL - 0.65) / 0.35));
-      const wMid = Math.max(0, 1.0 - wSh - wHi);
+      const wMid = Math.max(0, 1 - wSh - wHi);
 
+      const cb = safe.colorBalance;
       r += (cb.shadows.cyanRed * wSh + cb.midtones.cyanRed * wMid + cb.highlights.cyanRed * wHi) * 0.4;
       g += (cb.shadows.magentaGreen * wSh + cb.midtones.magentaGreen * wMid + cb.highlights.magentaGreen * wHi) * 0.4;
       b += (cb.shadows.yellowBlue * wSh + cb.midtones.yellowBlue * wMid + cb.highlights.yellowBlue * wHi) * 0.4;
@@ -1008,9 +1178,7 @@ export class WebGLRenderer {
         const newL = 0.2126 * r + 0.7152 * g + 0.0722 * b;
         if (newL > 0.01) {
           const lumScale = origL / newL;
-          r *= lumScale;
-          g *= lumScale;
-          b *= lumScale;
+          r *= lumScale; g *= lumScale; b *= lumScale;
         }
       }
 
@@ -1020,6 +1188,56 @@ export class WebGLRenderer {
     }
 
     sCtx.putImageData(imgData, 0, 0);
+
+    // Vignette is applied as a post-process so it affects the whole layer.
+    if (safe.vignette.amount !== 0) {
+      const vctx = scratch.getContext("2d");
+      if (vctx) {
+        const overlay = document.createElement("canvas");
+        overlay.width = scratch.width;
+        overlay.height = scratch.height;
+        const octx = overlay.getContext("2d");
+        if (octx) {
+          const gradient = octx.createRadialGradient(
+            overlay.width / 2,
+            overlay.height / 2,
+            Math.max(1, Math.min(overlay.width, overlay.height) * (safe.vignette.midpoint / 100) * 0.35),
+            overlay.width / 2,
+            overlay.height / 2,
+            Math.max(1, Math.max(overlay.width, overlay.height) * (0.5 + safe.vignette.feather / 200))
+          );
+          const amount = Math.max(-1, Math.min(1, safe.vignette.amount / 100));
+          if (amount >= 0) {
+            gradient.addColorStop(0, "rgba(0,0,0,0)");
+            gradient.addColorStop(1, `rgba(0,0,0,${Math.abs(amount) * 0.8})`);
+          } else {
+            gradient.addColorStop(0, `rgba(255,255,255,${Math.abs(amount) * 0.65})`);
+            gradient.addColorStop(1, "rgba(255,255,255,0)");
+          }
+          octx.fillStyle = gradient;
+          octx.fillRect(0, 0, overlay.width, overlay.height);
+          vctx.globalCompositeOperation = "source-over";
+          vctx.drawImage(overlay, 0, 0);
+        }
+      }
+    }
+
+    // Blur and noise reduction use small, bounded software blur passes. They
+    // intentionally operate after tonal/color adjustments.
+    const blurRadius = Math.max(0, Math.min(12, safe.blur / 4 + safe.noiseReduction / 18));
+    if (blurRadius > 0.05) {
+      const filtered = document.createElement("canvas");
+      filtered.width = scratch.width;
+      filtered.height = scratch.height;
+      const fctx = filtered.getContext("2d");
+      if (fctx) {
+        fctx.filter = `blur(${blurRadius}px)`;
+        fctx.drawImage(scratch, 0, 0);
+        fctx.filter = "none";
+        return filtered;
+      }
+    }
+
     return scratch;
   }
 

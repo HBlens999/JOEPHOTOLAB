@@ -28,6 +28,7 @@ export const ToolOptionsBar: React.FC = () => {
     selection,
     featherSelection,
     clearSelection,
+    updateTextLayer,
   } = useEditorStore();
 
   const activeLayer = doc.layers.find((l) => l.id === doc.activeLayerId);
@@ -217,21 +218,60 @@ export const ToolOptionsBar: React.FC = () => {
 
       {/* Text Tool Options */}
       {activeTool === "text" && activeLayer?.textProps && (
-        <div className="flex items-center space-x-3">
-          <span className="text-[11px] text-[#7a8192]">Font Size</span>
+        <div className="flex items-center gap-3">
+          <span className="text-[11px] text-[#7a8192]">Font</span>
+          <select
+            value={activeLayer.textProps.fontFamily}
+            onChange={(e) => updateTextLayer(activeLayer.id, { fontFamily: e.target.value })}
+            className="w-36 bg-[#232733] border border-[#343a49] text-[11px] text-white rounded px-2 py-1"
+          >
+            <option>Plus Jakarta Sans</option>
+            <option>Arial</option>
+            <option>Georgia</option>
+            <option>Times New Roman</option>
+            <option>Courier New</option>
+            <option>Verdana</option>
+          </select>
+          <span className="text-[11px] text-[#7a8192]">Size</span>
           <input
             type="number"
-            min={12}
-            max={200}
+            min={8}
+            max={500}
             value={activeLayer.textProps.fontSize}
-            onChange={(e) => {
-              const fontSize = Number(e.target.value);
-              useEditorStore.getState().updateActiveLayerAdjustments({});
-              if (activeLayer.textProps) activeLayer.textProps.fontSize = fontSize;
-            }}
-            className="w-14 bg-[#232733] border border-[#343a49] text-[11px] text-white rounded px-1.5 py-0.5 font-mono"
+            onChange={(e) => updateTextLayer(activeLayer.id, { fontSize: Math.max(8, Number(e.target.value) || 8) })}
+            className="w-16 bg-[#232733] border border-[#343a49] text-[11px] text-white rounded px-1.5 py-1 font-mono"
           />
+          <input
+            type="color"
+            value={activeLayer.textProps.fill}
+            onChange={(e) => updateTextLayer(activeLayer.id, { fill: e.target.value })}
+            title="Text color"
+            className="w-6 h-6 rounded border border-[#343a49] bg-transparent cursor-pointer"
+          />
+          <button
+            onClick={() => updateTextLayer(activeLayer.id, { fontWeight: activeLayer.textProps?.fontWeight === "bold" ? "normal" : "bold" })}
+            className={`px-2 py-1 rounded font-bold ${activeLayer.textProps.fontWeight === "bold" ? "bg-cyan-600 text-white" : "bg-[#232733] text-slate-300"}`}
+            title="Bold"
+          >B</button>
+          <button
+            onClick={() => updateTextLayer(activeLayer.id, { fontStyle: activeLayer.textProps?.fontStyle === "italic" ? "normal" : "italic" })}
+            className={`px-2 py-1 rounded italic ${activeLayer.textProps.fontStyle === "italic" ? "bg-cyan-600 text-white" : "bg-[#232733] text-slate-300"}`}
+            title="Italic"
+          >I</button>
+          <select
+            value={activeLayer.textProps.align}
+            onChange={(e) => updateTextLayer(activeLayer.id, { align: e.target.value as "left" | "center" | "right" })}
+            className="bg-[#232733] border border-[#343a49] text-[11px] text-white rounded px-2 py-1"
+            title="Text alignment"
+          >
+            <option value="left">Left</option>
+            <option value="center">Center</option>
+            <option value="right">Right</option>
+          </select>
         </div>
+      )}
+
+    </div>
       )}
     </div>
   );

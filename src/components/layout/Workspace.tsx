@@ -30,6 +30,7 @@ export const Workspace: React.FC = () => {
     setEllipseSelection,
     setPolygonSelection,
     setWandSelection,
+    setQuickSelection,
     setLayerTransform,
     importFile,
   } = useEditorStore();
@@ -385,7 +386,7 @@ export const Workspace: React.FC = () => {
     }
 
     if (activeTool === "quick-selection") {
-      useEditorStore.getState().setEllipseSelection(x, y, brushSettings.size / 2, brushSettings.size / 2, "add");
+      setQuickSelection(x, y, brushSettings.size / 2, 40);
       return;
     }
 
@@ -533,6 +534,12 @@ export const Workspace: React.FC = () => {
       }
 
       setCurrentSelectionRect({ x: minX, y: minY, w, h });
+      return;
+    }
+
+    // Quick Selection behaves like a color-aware selection brush.
+    if (activeTool === "quick-selection") {
+      setQuickSelection(x, y, brushSettings.size / 2, 40);
       return;
     }
 

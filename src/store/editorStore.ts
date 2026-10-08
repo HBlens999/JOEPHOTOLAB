@@ -1998,33 +1998,49 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       }
     }
 
-    // Standard PNG/JPG/WebP image import.
-    // Opening an image creates a clean document sized to the imported file,
-    // then fits it to the available editor viewport so it is immediately visible.
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const img = new Image();
-      img.onload = () => {
-        get().pushHistory(`Import ${file.name}`);
+    // Standard raster image import (PNG/JPG/JPEG/WebP/GIF/BMP and browser-decodable formats).
+    // Use object URLs instead of FileReader data URLs. This is faster, avoids
+    // large base64 strings, and gives drag/drop and file-picker imports exactly
+    // the same decoding path.
+    try {
+      if (!file.type.startsWith("image/")) {
+        get().showNotification("Please choose a PNG, JPG, JPEG, WebP, GIF or other browser-supported image.", "warning");
+        return;
+      }
+
+      const objectUrl = URL.createObjectURL(file);
+      try {
+        const img = new Image();
+        img.decoding = "async";
+        img.src = objectUrl;
+
+        if (typeof img.decode === "function") {
+          await img.decode();
+        } else {
+          await new Promise<void>((resolve, reject) => {
+            img.onload = () => resolve();
+            img.onerror = () => reject(new Error("Browser could not decode this image."));
+          });
+        }
 
         const width = img.naturalWidth;
         const height = img.naturalHeight;
+        if (!width || !height) throw new Error("Image has no usable dimensions.");
+
         const canvas = document.createElement("canvas");
         canvas.width = width;
         canvas.height = height;
 
-        const ctx = canvas.getContext("2d");
-        if (!ctx) {
-          get().showNotification("Could not create an image canvas.", "error");
-          return;
-        }
+        const ctx = canvas.getContext("2d", { alpha: true });
+        if (!ctx) throw new Error("Could not create an image canvas.");
+
         ctx.clearRect(0, 0, width, height);
         ctx.drawImage(img, 0, 0, width, height);
 
-        const layerId = `layer_imported_${Date.now()}`;
+        const layerId = `layer_imported_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
         const newLayer: Layer = {
           id: layerId,
-          name: file.name.substring(0, 24),
+          name: file.name.substring(0, 80),
           type: "raster",
           visible: true,
           locked: false,
@@ -2042,15 +2058,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         };
 
         const viewportWidth = Math.max(480, window.innerWidth - 360);
-        const viewportHeight = Math.max(320, window.innerHeight - 100);
+        const viewportHeight = Math.max(320, window.innerHeight - 140);
         const fitZoom = Math.min(
           1,
-          viewportWidth / Math.max(1, width),
-          viewportHeight / Math.max(1, height)
+          viewportWidth / width,
+          viewportHeight / height
         );
 
         const newDoc: PhotoDocument = {
-          id: `doc_imported_${Date.now()}`,
+          id: `doc_imported_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
           name: file.name,
           width,
           height,
@@ -2073,15 +2089,22 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           document: newDoc,
           activePanelTab: "layers",
         });
-        saveDocumentToIDB(newDoc);
-      };
 
-      img.onerror = () => {
-        get().showNotification("Could not decode the selected image.", "error");
-      };
-      img.src = e.target?.result as string;
-    };
-    reader.readAsDataURL(file);
+        try {
+          await saveDocumentToIDB(newDoc);
+        } catch (saveError) {
+          console.warn("Image imported but session save failed:", saveError);
+        }
+      } finally {
+        URL.revokeObjectURL(objectUrl);
+      }
+    } catch (err: any) {
+      console.error("Image import failed:", err);
+      get().showNotification(
+        `Could not import image: ${err?.message || "unsupported or corrupted image"}`,
+        "error"
+      );
+    }
   },
 
   exportProject: () => {

@@ -387,10 +387,21 @@ export const Workspace: React.FC = () => {
 
     // Selection marquee drag
     if (selectionDragStart && ["marquee-rect", "marquee-ellipse", "crop", "shape-rect", "shape-ellipse"].includes(activeTool)) {
-      const minX = Math.min(selectionDragStart.x, x);
-      const minY = Math.min(selectionDragStart.y, y);
-      const w = Math.abs(x - selectionDragStart.x);
-      const h = Math.abs(y - selectionDragStart.y);
+      let minX = Math.min(selectionDragStart.x, x);
+      let minY = Math.min(selectionDragStart.y, y);
+      let w = Math.abs(x - selectionDragStart.x);
+      let h = Math.abs(y - selectionDragStart.y);
+
+      // Shift-constrain the ellipse tool to a true circle, just like
+      // Photoshop/CorelDRAW. Rectangle remains freeform.
+      if (activeTool === "shape-ellipse" && e.shiftKey) {
+        const size = Math.max(w, h);
+        if (x < selectionDragStart.x) minX = selectionDragStart.x - size;
+        if (y < selectionDragStart.y) minY = selectionDragStart.y - size;
+        w = size;
+        h = size;
+      }
+
       setCurrentSelectionRect({ x: minX, y: minY, w, h });
       return;
     }

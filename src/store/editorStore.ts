@@ -27,6 +27,7 @@ import {
   selectEllipse,
   selectPolygon,
   selectMagicWand,
+  selectQuickBrush,
   invertSelectionMask,
   featherSelectionMask,
   maskToCanvas,
@@ -189,6 +190,7 @@ export interface EditorState {
   setEllipseSelection: (cx: number, cy: number, rx: number, ry: number, mode?: "new" | "add" | "subtract") => void;
   setPolygonSelection: (points: Array<{ x: number; y: number }>, mode?: "new" | "add" | "subtract") => void;
   setWandSelection: (startX: number, startY: number, tolerance?: number, contiguous?: boolean) => void;
+  setQuickSelection: (startX: number, startY: number, radius: number, tolerance?: number) => void;
   clearSelection: () => void;
   invertSelection: () => void;
   featherSelection: (radius: number) => void;
@@ -1003,8 +1005,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       activeLayer.height
     );
 
+    const clampedX = Math.max(0, Math.min(doc.width - 1, Math.round(startX)));
+    const clampedY = Math.max(0, Math.min(doc.height - 1, Math.round(startY)));
     const mask = createSelectionMaskFromState(doc.width, doc.height, get().selection, "new");
-    selectMagicWand(mask, sampleCtx, startX, startY, tolerance, contiguous, "new");
+    selectMagicWand(mask, sampleCtx, clampedX, clampedY, tolerance, contiguous, "new");
     const canvas = maskToCanvas(mask);
 
     set({
@@ -1016,6 +1020,46 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       },
     });
   },
+  setQuickSelection: (startX, startY, radius, tolerance = 40) => {
+    const doc = get().document;
+    const activeLayer = doc.layers.find((l) => l.id === doc.activeLayerId);
+    if (!activeLayer || !activeLayer.canvas) return;
+
+    const sampleCanvas = document.createElement("canvas");
+    sampleCanvas.width = doc.width;
+    sampleCanvas.height = doc.height;
+    const sampleCtx = sampleCanvas.getContext("2d");
+    if (!sampleCtx) return;
+
+    sampleCtx.clearRect(0, 0, doc.width, doc.height);
+    sampleCtx.drawImage(
+      activeLayer.canvas,
+      activeLayer.x,
+      activeLayer.y,
+      activeLayer.width,
+      activeLayer.height
+    );
+
+    const mask = createSelectionMaskFromState(doc.width, doc.height, get().selection, "add");
+    selectQuickBrush(mask, sampleCtx, startX, startY, radius, tolerance, "add");
+    const canvas = maskToCanvas(mask);
+
+    set({
+      selection: {
+        active: true,
+        maskCanvas: canvas,
+        bounds: {
+          x: Math.max(0, Math.round(startX - radius)),
+          y: Math.max(0, Math.round(startY - radius)),
+          width: Math.min(doc.width, Math.round(radius * 2)),
+          height: Math.min(doc.height, Math.round(radius * 2)),
+        },
+        feather: 0,
+      },
+    });
+  },
+
+
 
   clearSelection: () => {
     set({

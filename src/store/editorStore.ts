@@ -102,6 +102,17 @@ function selectionMaskForLayer(selectionCanvas: HTMLCanvasElement, layer: Layer)
   return maskCanvas;
 }
 
+let documentAutosaveTimer: ReturnType<typeof setTimeout> | null = null;
+
+function scheduleDocumentAutosave(readDocument: () => PhotoDocument) {
+  if (documentAutosaveTimer) clearTimeout(documentAutosaveTimer);
+  documentAutosaveTimer = setTimeout(() => {
+    void saveDocumentToIDB(readDocument()).catch((err) => {
+      console.warn("Deferred document autosave failed:", err);
+    });
+  }, 500);
+}
+
 export interface EditorState {
   document: PhotoDocument;
   activeTool: ToolType;
@@ -692,8 +703,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           ...l,
           x,
           y,
-          width: width ?? l.width,
-          height: height ?? l.height,
+          width: Math.max(1, width ?? l.width),
+          height: Math.max(1, height ?? l.height),
           rotation: rotation ?? l.rotation,
         };
       }
@@ -720,7 +731,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       return l;
     });
 
-    set({ document: { ...doc, layers: newLayers } });
+    const nextDoc = { ...doc, layers: newLayers };
+    set({ document: nextDoc });
+    scheduleDocumentAutosave(() => useEditorStore.getState().document);
   },
 
   updateRAWAdjustments: (rawAdjustments) => {

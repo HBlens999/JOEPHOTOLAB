@@ -722,6 +722,20 @@ export class WebGLRenderer {
   private setUniformsIdentity() {
     if (!this.gl || !this.program) return;
     const gl = this.gl;
+
+    // The fragment shader always evaluates the three curve LUT samplers.
+    // Explicitly bind the identity LUTs here; otherwise the samplers retain
+    // their default texture-unit state and can accidentally sample u_image,
+    // producing the red/black composite seen in the editor.
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, this.lutTextureR);
+    gl.uniform1i(gl.getUniformLocation(this.program, "u_curveLutR"), 1);
+    gl.activeTexture(gl.TEXTURE2);
+    gl.bindTexture(gl.TEXTURE_2D, this.lutTextureG);
+    gl.uniform1i(gl.getUniformLocation(this.program, "u_curveLutG"), 2);
+    gl.activeTexture(gl.TEXTURE3);
+    gl.bindTexture(gl.TEXTURE_2D, this.lutTextureB);
+    gl.uniform1i(gl.getUniformLocation(this.program, "u_curveLutB"), 3);
     gl.uniform1f(gl.getUniformLocation(this.program, "u_brightness"), 0);
     gl.uniform1f(gl.getUniformLocation(this.program, "u_contrast"), 0);
     gl.uniform1f(gl.getUniformLocation(this.program, "u_exposure"), 0);

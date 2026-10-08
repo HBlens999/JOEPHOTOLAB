@@ -15,7 +15,8 @@ export type LayerType =
   | "group"
   | "adjustment"
   | "ai"
-  | "mask";
+  | "mask"
+  | "shape";
 
 export interface CurvePoint {
   x: number; // 0 to 255
@@ -92,6 +93,16 @@ export interface AdjustmentSettings {
   };
 }
 
+export interface ShapeProperties {
+  kind: "rectangle" | "ellipse";
+  fill: string;
+  fillOpacity: number;
+  stroke: string;
+  strokeOpacity: number;
+  strokeWidth: number;
+  cornerRadius: number;
+}
+
 export interface LayerMask {
   canvas: HTMLCanvasElement;
   enabled: boolean;
@@ -145,6 +156,7 @@ export interface Layer {
   textProps?: TextProperties;
   adjustments?: AdjustmentSettings;
   aiMetadata?: AILayerMetadata;
+  shapeProps?: ShapeProperties;
 
   children?: Layer[]; // For group layers
 }
@@ -206,6 +218,8 @@ export interface PhotoDocument {
 
 export type ToolType =
   | "move"
+  | "shape-rect"
+  | "shape-ellipse"
   | "pan"
   | "zoom"
   | "crop"

@@ -298,8 +298,13 @@ export const Workspace: React.FC = () => {
       return;
     }
 
-    if (activeTool === "lasso" || activeTool === "polygonal-lasso") {
+    if (activeTool === "lasso") {
       setLassoPoints([{ x, y }]);
+      return;
+    }
+
+    if (activeTool === "polygonal-lasso") {
+      setLassoPoints((pts) => (pts.length === 0 ? [{ x, y }] : [...pts, { x, y }]));
       return;
     }
 
@@ -401,6 +406,13 @@ export const Workspace: React.FC = () => {
     }
   };
 
+  const handleWorkspaceDoubleClick = (e: React.MouseEvent) => {
+    if (activeTool !== "polygonal-lasso" || lassoPoints.length < 3) return;
+    e.stopPropagation();
+    setPolygonSelection(lassoPoints, "new");
+    setLassoPoints([]);
+  };
+
   // Pointer Up
   const handlePointerUp = () => {
     setIsPointerDown(false);
@@ -438,12 +450,7 @@ export const Workspace: React.FC = () => {
       return;
     }
 
-    if (activeTool === "polygonal-lasso" && lassoPoints.length >= 3) {
-      setPolygonSelection(lassoPoints, "new");
-      setLassoPoints([]);
-      return;
-    }
-
+    // Polygonal lasso commits on double-click; pointer-up only ends the current click.
     // Commit marquee selection
     if (selectionDragStart && currentSelectionRect) {
       if (activeTool === "marquee-rect") {
@@ -483,7 +490,7 @@ export const Workspace: React.FC = () => {
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
-      onDoubleClick={handleDoubleClick}
+      onDoubleClick={(e) => { handleDoubleClick(e); handleWorkspaceDoubleClick(e); }}
       className="flex-1 relative overflow-hidden bg-[#0d0e12] flex items-center justify-center"
       style={{
         cursor:

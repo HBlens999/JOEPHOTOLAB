@@ -40,6 +40,11 @@ body,
   will-change: transform;
 }
 
+.mobile-panel-toggle,
+.mobile-panel-close {
+  display: none;
+}
+
 @media (max-width: 767px) {
   .app-shell {
     min-height: 100dvh;

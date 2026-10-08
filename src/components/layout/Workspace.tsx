@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useState, useCallback } from "react";
 import { useEditorStore } from "../../store/editorStore";
+import { ToolType } from "../../types/document";
 import { WebGLRenderer } from "../../engine/WebGLRenderer";
 
 export const Workspace: React.FC = () => {
@@ -89,9 +90,28 @@ export const Workspace: React.FC = () => {
         } else {
           useEditorStore.getState().undo();
         }
+        return;
       }
       if (e.key === "y" && (e.ctrlKey || e.metaKey)) {
         useEditorStore.getState().redo();
+        return;
+      }
+
+      // Core editor shortcuts.
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const key = e.key.toLowerCase();
+      const shortcuts: Record<string, ToolType> = {
+        v: "move", h: "pan", m: e.shiftKey ? "marquee-ellipse" : "marquee-rect",
+        u: e.shiftKey ? "shape-ellipse" : "shape-rect",
+        l: "lasso", w: "magic-wand", c: e.shiftKey ? "perspective-crop" : "crop",
+        i: "eyedropper", j: e.shiftKey ? "healing" : "spot-healing",
+        s: "clone", b: e.shiftKey ? "ai-detail-brush" : "brush",
+        e: "eraser", t: "text", z: "zoom",
+      };
+      const nextTool = shortcuts[key];
+      if (nextTool) {
+        e.preventDefault();
+        useEditorStore.getState().setTool(nextTool);
       }
     };
 

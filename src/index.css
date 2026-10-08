@@ -141,7 +141,46 @@ body,
     height: 32px !important;
   }
 
+  .mobile-panel-toggle,
+  .mobile-panel-close {
+    display: flex !important;
+  }
+
+  .mobile-panel-toggle {
+    position: fixed;
+    right: 8px;
+    bottom: 64px;
+    z-index: 80;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 11px;
+    border: 1px solid #343a49;
+    border-radius: 10px;
+    background: rgba(20, 23, 30, 0.96);
+    color: #ffffff;
+    font-size: 11px;
+    font-weight: 700;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+    touch-action: manipulation;
+  }
+
+  .mobile-panel-close {
+    display: none !important;
+    position: absolute;
+    right: 5px;
+    top: 5px;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 7px;
+    color: #c8ceda;
+    background: rgba(255, 255, 255, 0.06);
+    z-index: 3;
+  }
+
   .app-right-sidebar {
+    display: none !important;
     position: absolute !important;
     left: 0 !important;
     right: 0 !important;
@@ -154,6 +193,14 @@ body,
     border-top: 1px solid #252830 !important;
     box-shadow: 0 -12px 30px rgba(0, 0, 0, 0.35);
     z-index: 50 !important;
+  }
+
+  .app-right-sidebar.mobile-open {
+    display: flex !important;
+  }
+
+  .app-right-sidebar.mobile-open .mobile-panel-close {
+    display: flex !important;
   }
 
   .app-workspace {
@@ -171,6 +218,11 @@ body,
 }
 
 @media (max-width: 420px) {
+  .mobile-panel-toggle {
+    bottom: 62px;
+    right: 6px;
+  }
+
   .app-topbar {
     height: 42px !important;
     min-height: 42px !important;

@@ -7,6 +7,7 @@ import {
   Camera,
   History,
   ChevronRight,
+  X,
 } from "lucide-react";
 import { useEditorStore } from "../../store/editorStore";
 import { LayersPanel } from "../panels/LayersPanel";
@@ -17,11 +18,32 @@ import { RAWPanel } from "../panels/RAWPanel";
 
 export const RightSidebar: React.FC = () => {
   const { activePanelTab, setActivePanelTab, undoStack, undo } = useEditorStore();
+  const [mobileOpen, setMobileOpen] = React.useState(false);
 
   return (
-    <aside className="app-right-sidebar w-80 bg-[#16181f] border-l border-[#252830] flex flex-col select-none shrink-0 z-20 h-full">
+    <>
+      <button
+        type="button"
+        className="mobile-panel-toggle"
+        onClick={() => setMobileOpen((open) => !open)}
+        aria-expanded={mobileOpen}
+        aria-label={mobileOpen ? "Close panels" : "Open layers and editing panels"}
+      >
+        <Layers className="w-4 h-4" />
+        <span>{mobileOpen ? "Close" : "Panels"}</span>
+      </button>
+
+      <aside className={"app-right-sidebar w-80 bg-[#16181f]" + (mobileOpen ? " mobile-open" : "")} border-l border-[#252830] flex flex-col select-none shrink-0 z-20 h-full">
       {/* Tab Navigation Header */}
-      <div className="h-10 bg-[#13151b] border-b border-[#252830] flex items-center px-1 text-xs text-[#8d94a5] shrink-0">
+      <div className="relative h-10 bg-[#13151b] border-b border-[#252830] flex items-center px-1 pr-8 text-xs text-[#8d94a5] shrink-0">
+        <button
+          type="button"
+          className="mobile-panel-close"
+          onClick={() => setMobileOpen(false)}
+          aria-label="Close panels"
+        >
+          <X className="w-4 h-4" />
+        </button>
         {[
           { id: "layers", label: "Layers", icon: <Layers className="w-3.5 h-3.5" /> },
           { id: "adjustments", label: "Adjust", icon: <Sliders className="w-3.5 h-3.5" /> },
@@ -56,5 +78,6 @@ export const RightSidebar: React.FC = () => {
         {activePanelTab === "raw" && <RAWPanel />}
       </div>
     </aside>
+    </>
   );
 };

@@ -205,7 +205,7 @@ export const ToolOptionsBar: React.FC = () => {
       )}
 
       {/* Shape Tool Options */}
-      {["shape-rect", "shape-ellipse"].includes(activeTool) && (
+      {(["shape-rect", "shape-ellipse"].includes(activeTool) || activeLayer?.type === "shape") && (
         <div className="flex items-center gap-3">
           <span className="text-[11px] text-[#7a8192]">Fill</span>
           <input
@@ -244,7 +244,15 @@ export const ToolOptionsBar: React.FC = () => {
             onChange={(e) => activeLayer?.type === "shape" && updateShapeLayer(activeLayer.id, { strokeOpacity: Number(e.target.value) })}
             className="w-16 accent-cyan-500"
           />
-          {activeTool === "shape-rect" && (
+          <span className="text-[11px] text-[#7a8192]">Shape opacity</span>
+          <input
+            type="range" min="0" max="1" step="0.01"
+            value={activeLayer?.type === "shape" ? activeLayer.opacity : 1}
+            onChange={(e) => activeLayer?.type === "shape" && useEditorStore.getState().setLayerOpacity(activeLayer.id, Number(e.target.value))}
+            className="w-16 accent-cyan-500"
+            title="Overall shape opacity"
+          />
+          {activeLayer?.type === "shape" && activeLayer.shapeProps?.kind === "rectangle" && (
             <>
               <span className="text-[11px] text-[#7a8192]">Radius</span>
               <input

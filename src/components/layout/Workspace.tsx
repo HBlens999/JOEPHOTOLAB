@@ -760,7 +760,7 @@ export const Workspace: React.FC = () => {
               height: activeLayer.height,
             }}
           >
-            {[
+            {([
               "nw", "n", "ne", "e", "se", "s", "sw", "w"
             ] as const).map((handle) => {
               const positionClass: Record<ResizeHandle, string> = {

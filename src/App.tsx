@@ -21,7 +21,13 @@ export function App() {
     (async () => {
       try {
         const savedDoc = await loadDocumentFromIDB();
-        if (savedDoc && savedDoc.layers.length > 0) {
+        // Do not resurrect the old cinematic demo document that shipped with
+        // earlier builds. New JoePhotoLab sessions must open on the clean white
+        // artboard; real user projects are still restored normally.
+        const isLegacyDemo =
+          savedDoc?.id === "doc_default_init" ||
+          savedDoc?.name === "Alpine_Summit_Raw.dng";
+        if (savedDoc && savedDoc.layers.length > 0 && !isLegacyDemo) {
           useEditorStore.setState({ document: savedDoc });
         }
       } catch (err) {

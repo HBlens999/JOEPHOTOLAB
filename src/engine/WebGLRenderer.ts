@@ -487,6 +487,64 @@ export class WebGLRenderer {
         }
 
         offCtx.restore();
+      } else if (layer.type === "shape" && layer.shapeProps) {
+        const props = layer.shapeProps;
+        offCtx.save();
+        offCtx.globalAlpha = layer.opacity;
+        offCtx.translate(layer.x + layer.width / 2, layer.y + layer.height / 2);
+        offCtx.rotate((layer.rotation * Math.PI) / 180);
+        offCtx.translate(-layer.width / 2, -layer.height / 2);
+
+        const fillAlpha = Math.max(0, Math.min(1, props.fillOpacity));
+        const strokeAlpha = Math.max(0, Math.min(1, props.strokeOpacity));
+        if (props.kind === "ellipse") {
+          offCtx.beginPath();
+          offCtx.ellipse(layer.width / 2, layer.height / 2, Math.abs(layer.width / 2), Math.abs(layer.height / 2), 0, 0, Math.PI * 2);
+        } else {
+          const r = Math.min(Math.max(0, props.cornerRadius), Math.min(layer.width, layer.height) / 2);
+          if (r > 0) {
+            offCtx.beginPath();
+            offCtx.roundRect(0, 0, layer.width, layer.height, r);
+          } else {
+            offCtx.beginPath();
+            offCtx.rect(0, 0, layer.width, layer.height);
+          }
+        }
+        if (fillAlpha > 0) {
+          offCtx.fillStyle = props.fill || "#ffffff";
+          offCtx.globalAlpha = layer.opacity * fillAlpha;
+          offCtx.fill();
+        }
+        if (props.strokeWidth > 0 && strokeAlpha > 0) {
+          offCtx.strokeStyle = props.stroke || "#000000";
+          offCtx.lineWidth = props.strokeWidth;
+          offCtx.globalAlpha = layer.opacity * strokeAlpha;
+          offCtx.stroke();
+        }
+        offCtx.restore();
+      } else if (layer.type === "shape" && layer.shapeProps) {
+        const props = layer.shapeProps;
+        ctx.save();
+        ctx.globalAlpha = layer.opacity;
+        ctx.translate(layer.x + layer.width / 2, layer.y + layer.height / 2);
+        ctx.rotate((layer.rotation * Math.PI) / 180);
+        ctx.translate(-layer.width / 2, -layer.height / 2);
+        ctx.beginPath();
+        if (props.kind === "ellipse") {
+          ctx.ellipse(layer.width / 2, layer.height / 2, Math.abs(layer.width / 2), Math.abs(layer.height / 2), 0, 0, Math.PI * 2);
+        } else if (props.cornerRadius > 0) {
+          ctx.roundRect(0, 0, layer.width, layer.height, Math.min(props.cornerRadius, Math.min(layer.width, layer.height) / 2));
+        } else {
+          ctx.rect(0, 0, layer.width, layer.height);
+        }
+        ctx.globalAlpha = layer.opacity * Math.max(0, Math.min(1, props.fillOpacity));
+        ctx.fillStyle = props.fill;
+        if (props.fillOpacity > 0) ctx.fill();
+        ctx.globalAlpha = layer.opacity * Math.max(0, Math.min(1, props.strokeOpacity));
+        ctx.strokeStyle = props.stroke;
+        ctx.lineWidth = props.strokeWidth;
+        if (props.strokeWidth > 0 && props.strokeOpacity > 0) ctx.stroke();
+        ctx.restore();
       } else if (layer.type === "text" && layer.textProps) {
         offCtx.save();
         offCtx.globalAlpha = layer.opacity;

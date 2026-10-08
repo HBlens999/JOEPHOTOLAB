@@ -37,7 +37,7 @@ export function App() {
   }, []);
 
   return (
-    <div className="flex flex-col h-screen w-screen bg-[#121316] text-[#e0e2ec] overflow-hidden select-none font-['Plus_Jakarta_Sans',sans-serif]">
+    <div className="app-shell flex flex-col h-screen w-screen bg-[#121316] text-[#e0e2ec] overflow-hidden select-none font-['Plus_Jakarta_Sans',sans-serif]">
       {/* 1. Top Navigation Bar */}
       <TopBar />
 

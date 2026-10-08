@@ -103,7 +103,7 @@ export interface EditorState {
   // Document & Layers
   setActiveLayer: (id: string) => void;
   addRasterLayer: (name?: string) => void;
-  addTextLayer: () => void;
+  addTextLayer: (x?: number, y?: number) => void;
   addAdjustmentLayer: (name: string, preset?: Partial<AdjustmentSettings>) => void;
   convertDocumentColorSpace: (targetSpace: SupportedColorSpace) => void;
   deleteLayer: (id: string) => void;

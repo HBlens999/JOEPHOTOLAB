@@ -298,8 +298,13 @@ export const Workspace: React.FC = () => {
       return;
     }
 
-    if (activeTool === "lasso") {
+    if (activeTool === "lasso" || activeTool === "polygonal-lasso") {
       setLassoPoints([{ x, y }]);
+      return;
+    }
+
+    if (activeTool === "quick-selection") {
+      useEditorStore.getState().setEllipseSelection(x, y, brushSettings.size / 2, brushSettings.size / 2, "add");
       return;
     }
 
@@ -430,6 +435,12 @@ export const Workspace: React.FC = () => {
       }
       setSelectionDragStart(null);
       setCurrentSelectionRect(null);
+      return;
+    }
+
+    if (activeTool === "polygonal-lasso" && lassoPoints.length >= 3) {
+      setPolygonSelection(lassoPoints, "new");
+      setLassoPoints([]);
       return;
     }
 

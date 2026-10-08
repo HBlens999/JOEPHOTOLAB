@@ -572,13 +572,63 @@ export class WebGLRenderer {
     gl.bindVertexArray(null);
   }
 
+  private hasVisibleAdjustments(adj?: AdjustmentSettings): boolean {
+    if (!adj) return false;
+    const nearZero = (v: number) => Math.abs(v) < 0.000001;
+    const nearOne = (v: number) => Math.abs(v - 1) < 0.000001;
+    const curvesIdentity = (points: Array<{ x: number; y: number }>) =>
+      points.length === 2 &&
+      points[0].x === 0 && points[0].y === 0 &&
+      points[1].x === 255 && points[1].y === 255;
+
+    return !(
+      nearZero(adj.brightness) &&
+      nearZero(adj.contrast) &&
+      nearZero(adj.exposure) &&
+      nearZero(adj.highlights) &&
+      nearZero(adj.shadows) &&
+      nearZero(adj.temperature) &&
+      nearZero(adj.tint) &&
+      nearZero(adj.saturation) &&
+      nearZero(adj.vibrance) &&
+      nearZero(adj.sharpness) &&
+      nearZero(adj.noiseReduction) &&
+      nearZero(adj.blur) &&
+      nearZero(adj.vignette.amount) &&
+      nearZero(adj.levels.rgb.black) &&
+      nearOne(adj.levels.rgb.gamma) &&
+      adj.levels.rgb.white === 255 &&
+      nearZero(adj.levels.red.black) &&
+      nearOne(adj.levels.red.gamma) &&
+      adj.levels.red.white === 255 &&
+      nearZero(adj.levels.green.black) &&
+      nearOne(adj.levels.green.gamma) &&
+      adj.levels.green.white === 255 &&
+      nearZero(adj.levels.blue.black) &&
+      nearOne(adj.levels.blue.gamma) &&
+      adj.levels.blue.white === 255 &&
+      curvesIdentity(adj.curves.rgb) &&
+      curvesIdentity(adj.curves.red) &&
+      curvesIdentity(adj.curves.green) &&
+      curvesIdentity(adj.curves.blue) &&
+      Object.values(adj.hsl).every((v: any) => nearZero(v.hue) && nearZero(v.sat) && nearZero(v.lum)) &&
+      Object.values(adj.colorBalance.shadows).every(nearZero) &&
+      Object.values(adj.colorBalance.midtones).every(nearZero) &&
+      Object.values(adj.colorBalance.highlights).every(nearZero) &&
+      adj.colorBalance.preserveLuminosity === true
+    );
+  }
+
   /**
    * Applies GPU shader adjustments to an individual layer canvas using FBO
    */
   public renderAdjustedLayer(layer: Layer): HTMLCanvasElement {
     if (!layer.canvas) return document.createElement("canvas");
     const adj = layer.adjustments;
-    if (!adj && !layer.aiMetadata) {
+    // A freshly imported/created raster layer has identity adjustments. Do NOT
+    // send it through the GPU grading pipeline. This avoids LUT/FBO corruption
+    // and guarantees the source pixels are displayed exactly as imported.
+    if (!layer.aiMetadata && (!adj || !this.hasVisibleAdjustments(adj))) {
       return layer.canvas;
     }
 

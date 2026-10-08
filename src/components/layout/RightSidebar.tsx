@@ -19,7 +19,7 @@ export const RightSidebar: React.FC = () => {
   const { activePanelTab, setActivePanelTab, undoStack, undo } = useEditorStore();
 
   return (
-    <aside className="w-80 bg-[#16181f] border-l border-[#252830] flex flex-col select-none shrink-0 z-20 h-full">
+    <aside className="app-right-sidebar w-80 bg-[#16181f] border-l border-[#252830] flex flex-col select-none shrink-0 z-20 h-full">
       {/* Tab Navigation Header */}
       <div className="h-10 bg-[#13151b] border-b border-[#252830] flex items-center px-1 text-xs text-[#8d94a5] shrink-0">
         {[

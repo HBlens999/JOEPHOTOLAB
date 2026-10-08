@@ -11,6 +11,7 @@ import {
   getDefaultAdjustments,
   PerspectivePoint,
   RAWAdjustments,
+  TextProperties,
 } from "../types/document";
 import { createDefaultDocument } from "./sampleDocument";
 import { saveDocumentToIDB, exportProjectJPL } from "./persistence";
@@ -104,6 +105,7 @@ export interface EditorState {
   setActiveLayer: (id: string) => void;
   addRasterLayer: (name?: string) => void;
   addTextLayer: (x?: number, y?: number) => void;
+  updateTextLayer: (id: string, props: Partial<TextProperties>) => void;
   addAdjustmentLayer: (name: string, preset?: Partial<AdjustmentSettings>) => void;
   convertDocumentColorSpace: (targetSpace: SupportedColorSpace) => void;
   deleteLayer: (id: string) => void;
@@ -342,6 +344,23 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         ...doc,
         layers: [newLayer, ...doc.layers],
         activeLayerId: newLayer.id,
+      },
+    });
+    saveDocumentToIDB(get().document);
+  },
+
+  updateTextLayer: (id, props) => {
+    const doc = get().document;
+    const layer = doc.layers.find((l) => l.id === id && l.type === "text" && l.textProps);
+    if (!layer || !layer.textProps) return;
+    set({
+      document: {
+        ...doc,
+        layers: doc.layers.map((l) =>
+          l.id === id && l.type === "text" && l.textProps
+            ? { ...l, textProps: { ...l.textProps, ...props } }
+            : l
+        ),
       },
     });
     saveDocumentToIDB(get().document);
@@ -1657,6 +1676,13 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       panX: 0,
       panY: 0,
     };
+
+    const viewportWidth = Math.max(480, window.innerWidth - 420);
+    const viewportHeight = Math.max(320, window.innerHeight - 150);
+    newDoc.zoom = Math.max(
+      0.05,
+      Math.min(1, viewportWidth / Math.max(1, width), viewportHeight / Math.max(1, height))
+    );
 
     set({ document: newDoc, isNewDocModalOpen: false });
     saveDocumentToIDB(newDoc);

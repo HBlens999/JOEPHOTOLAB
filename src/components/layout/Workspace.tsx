@@ -19,6 +19,8 @@ export const Workspace: React.FC = () => {
     applyHealingStroke,
     applySpotHeal,
     addTextLayer,
+    updateTextLayer,
+    setActiveLayer,
     setRectSelection,
     setEllipseSelection,
     setPolygonSelection,
@@ -36,6 +38,7 @@ export const Workspace: React.FC = () => {
   const [isPointerDown, setIsPointerDown] = useState(false);
   const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null);
   const [cursorPos, setCursorPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [editingTextLayerId, setEditingTextLayerId] = useState<string | null>(null);
 
   // For selection dragging
   const [selectionDragStart, setSelectionDragStart] = useState<{ x: number; y: number } | null>(null);
@@ -175,9 +178,25 @@ export const Workspace: React.FC = () => {
       return;
     }
 
-    // Text tool: create a text layer at the click location.
+    // Text tool: select an existing text layer instead of creating another one.
+    // A double-click then enters inline editing mode.
     if (activeTool === "text") {
-      addTextLayer(x, y);
+      const hit = [...doc.layers]
+        .reverse()
+        .find((layer) =>
+          layer.type === "text" &&
+          layer.visible &&
+          x >= layer.x &&
+          x <= layer.x + layer.width &&
+          y >= layer.y &&
+          y <= layer.y + layer.height
+        );
+
+      if (hit) {
+        setActiveLayer(hit.id);
+      } else {
+        addTextLayer(x, y);
+      }
       return;
     }
 
@@ -276,6 +295,28 @@ export const Workspace: React.FC = () => {
     }
   };
 
+  // Double-clicking an existing text layer enters inline editing.
+  // Native dblclick follows the two click/pointer sequences, so the pointer-down
+  // handler above must only select the existing layer, not create a new layer.
+  const handleDoubleClick = (e: React.MouseEvent) => {
+    if (activeTool !== "text") return;
+    const { x, y } = clientToDocCoords(e.clientX, e.clientY);
+    const hit = [...doc.layers]
+      .reverse()
+      .find((layer) =>
+        layer.type === "text" &&
+        layer.visible &&
+        x >= layer.x &&
+        x <= layer.x + layer.width &&
+        y >= layer.y &&
+        y <= layer.y + layer.height
+      );
+    if (hit) {
+      setActiveLayer(hit.id);
+      setEditingTextLayerId(hit.id);
+    }
+  };
+
   // Pointer Up
   const handlePointerUp = () => {
     setIsPointerDown(false);
@@ -322,6 +363,7 @@ export const Workspace: React.FC = () => {
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
+      onDoubleClick={handleDoubleClick}
       className="flex-1 relative overflow-hidden bg-[#0d0e12] flex items-center justify-center"
       style={{
         cursor:
@@ -489,6 +531,41 @@ export const Workspace: React.FC = () => {
             </div>
           </div>
         )}
+        {editingTextLayerId && (() => {
+          const editingLayer = doc.layers.find((l) => l.id === editingTextLayerId && l.type === "text");
+          if (!editingLayer?.textProps) return null;
+          return (
+            <textarea
+              autoFocus
+              value={editingLayer.textProps.text}
+              onChange={(e) => updateTextLayer(editingLayer.id, { text: e.target.value })}
+              onFocus={(e) => e.currentTarget.select()}
+              onBlur={() => setEditingTextLayerId(null)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  setEditingTextLayerId(null);
+                }
+              }}
+              onPointerDown={(e) => e.stopPropagation()}
+              className="absolute z-30 resize-none overflow-hidden border border-cyan-400 bg-black/20 outline-none"
+              style={{
+                left: editingLayer.x,
+                top: editingLayer.y,
+                width: Math.max(240, editingLayer.width),
+                minHeight: editingLayer.height,
+                color: editingLayer.textProps.fill,
+                fontFamily: editingLayer.textProps.fontFamily,
+                fontSize: editingLayer.textProps.fontSize,
+                fontWeight: editingLayer.textProps.fontWeight,
+                fontStyle: editingLayer.textProps.fontStyle,
+                lineHeight: editingLayer.textProps.lineHeight,
+                textAlign: editingLayer.textProps.align,
+                letterSpacing: editingLayer.textProps.letterSpacing,
+                background: "rgba(0,0,0,0.15)",
+              }}
+            />
+          );
+        })()}
       </div>
 
       {/* Rulers / Viewport Pixel Coordinate HUD */}

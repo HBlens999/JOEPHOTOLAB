@@ -1110,12 +1110,17 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   // Perspective Homography
   initPerspectivePoints: () => {
     const doc = get().document;
+    const activeLayer = doc.layers.find((l) => l.id === doc.activeLayerId);
+    const layerX = activeLayer?.x || 0;
+    const layerY = activeLayer?.y || 0;
+    const layerW = activeLayer?.width || doc.width;
+    const layerH = activeLayer?.height || doc.height;
     set({
       perspectivePoints: [
-        { x: doc.width * 0.1, y: doc.height * 0.1 },
-        { x: doc.width * 0.9, y: doc.height * 0.1 },
-        { x: doc.width * 0.9, y: doc.height * 0.9 },
-        { x: doc.width * 0.1, y: doc.height * 0.9 },
+        { x: layerX + layerW * 0.1, y: layerY + layerH * 0.1 },
+        { x: layerX + layerW * 0.9, y: layerY + layerH * 0.1 },
+        { x: layerX + layerW * 0.9, y: layerY + layerH * 0.9 },
+        { x: layerX + layerW * 0.1, y: layerY + layerH * 0.9 },
       ],
     });
   },
@@ -1135,8 +1140,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const pts = get().perspectivePoints;
     if (!activeLayer || !activeLayer.canvas || !pts) return;
 
-    // Apply 4-corner perspective projective homography transformation
-    const rectified = rectifyPerspective(activeLayer.canvas, pts);
+    // The on-canvas handles are in document coordinates. Homography expects
+    // layer-local pixel coordinates, so translate them before rectification.
+    const localPts = pts.map((p) => ({
+      x: Math.max(0, Math.min(activeLayer.canvas!.width - 1, p.x - activeLayer.x)),
+      y: Math.max(0, Math.min(activeLayer.canvas!.height - 1, p.y - activeLayer.y)),
+    }));
+
+    const rectified = rectifyPerspective(activeLayer.canvas, localPts);
     activeLayer.canvas = rectified;
     activeLayer.width = rectified.width;
     activeLayer.height = rectified.height;

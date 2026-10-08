@@ -762,7 +762,7 @@ export const Workspace: React.FC = () => {
           >
             {[
               "nw", "n", "ne", "e", "se", "s", "sw", "w"
-            ].map((handle) => {
+            ] as const).map((handle) => {
               const positionClass: Record<ResizeHandle, string> = {
                 nw: "-top-2 -left-2",
                 n: "-top-2 left-1/2 -translate-x-1/2",

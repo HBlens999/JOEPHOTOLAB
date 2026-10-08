@@ -64,6 +64,8 @@ export interface EditorState {
   document: PhotoDocument;
   activeTool: ToolType;
   brushSettings: BrushSettings;
+  textSettings: TextProperties;
+  setTextSettings: (settings: Partial<TextProperties>) => void;
   cloneSettings: CloneSettings;
   selection: SelectionState;
   perspectivePoints: PerspectivePoint[] | null;
@@ -177,6 +179,20 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     smoothing: 0.2,
     color: "#ffffff",
   },
+  textSettings: {
+    text: "Double click to edit text",
+    fontSize: 48,
+    fontFamily: "Plus Jakarta Sans",
+    fill: "#ffffff",
+    fontWeight: "bold",
+    fontStyle: "normal",
+    letterSpacing: 0,
+    lineHeight: 1.2,
+    align: "left",
+  },
+  setTextSettings: (settings) =>
+    set((state) => ({ textSettings: { ...state.textSettings, ...settings } })),
+
   cloneSettings: {
     sourceX: null,
     sourceY: null,
@@ -327,17 +343,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       rotation: 0,
       scaleX: 1,
       scaleY: 1,
-      textProps: {
-        text: "Double click to edit text",
-        fontSize: 48,
-        fontFamily: "Plus Jakarta Sans",
-        fill: "#ffffff",
-        fontWeight: "bold",
-        fontStyle: "normal",
-        letterSpacing: 0,
-        lineHeight: 1.2,
-        align: "left",
-      },
+      textProps: { ...get().textSettings },
     };
 
     set({

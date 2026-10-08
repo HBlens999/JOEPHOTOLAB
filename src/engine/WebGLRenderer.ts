@@ -200,8 +200,8 @@ void main() {
   // 7. Curves Lookup
   rgb = clamp(rgb, 0.0, 1.0);
   rgb.r = texture(u_curveLutR, vec2(rgb.r, 0.5)).r;
-  rgb.g = texture(u_curveLutG, vec2(rgb.g, 0.5)).g;
-  rgb.b = texture(u_curveLutB, vec2(rgb.b, 0.5)).b;
+  rgb.g = texture(u_curveLutG, vec2(rgb.g, 0.5)).r;
+  rgb.b = texture(u_curveLutB, vec2(rgb.b, 0.5)).r;
 
   // 8. HSL 8-Band Color Mixer
   vec3 hsl = rgb2hsl(rgb);

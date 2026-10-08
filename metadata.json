@@ -1,0 +1,6 @@
+{
+  "name": "Joephotolab",
+  "description": "Professional browser-based photo editor with WebGL2 rendering, non-destructive layer compositing, retouching, RAW development, and Gemini AI pipeline.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

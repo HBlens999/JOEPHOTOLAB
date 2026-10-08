@@ -18,6 +18,7 @@ export const Workspace: React.FC = () => {
     applyCloneStroke,
     applyHealingStroke,
     applySpotHeal,
+    addTextLayer,
     setRectSelection,
     setEllipseSelection,
     setPolygonSelection,
@@ -174,6 +175,12 @@ export const Workspace: React.FC = () => {
       return;
     }
 
+    // Text tool: create a text layer at the click location.
+    if (activeTool === "text") {
+      addTextLayer(x, y);
+      return;
+    }
+
     // Spot Healing
     if (activeTool === "spot-healing") {
       applySpotHeal(x, y);
@@ -315,9 +322,25 @@ export const Workspace: React.FC = () => {
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
-      className={`flex-1 relative overflow-hidden bg-[#0d0e12] flex items-center justify-center ${
-        isSpacePressed || activeTool === "pan" ? "cursor-grab active:cursor-grabbing" : "cursor-crosshair"
-      }`}
+      className="flex-1 relative overflow-hidden bg-[#0d0e12] flex items-center justify-center"
+      style={{
+        cursor:
+          isSpacePressed || activeTool === "pan"
+            ? (isPointerDown ? "grabbing" : "grab")
+            : activeTool === "move"
+              ? "move"
+              : activeTool === "text"
+                ? "text"
+                : activeTool === "zoom"
+                  ? "zoom-in"
+                  : activeTool === "crop" || activeTool === "perspective-crop"
+                    ? "crosshair"
+                    : ["marquee-rect", "marquee-ellipse", "lasso", "magic-wand", "quick-selection", "polygonal-lasso", "eyedropper"].includes(activeTool)
+                      ? "crosshair"
+                      : ["brush", "eraser", "clone", "healing", "spot-healing", "ai-detail-brush"].includes(activeTool)
+                        ? "crosshair"
+                        : "default",
+      }}
     >
       {/* Viewport Canvas Container */}
       <div

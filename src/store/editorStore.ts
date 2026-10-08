@@ -61,6 +61,47 @@ export interface AIJobStatus {
   error?: string;
 }
 
+function createSelectionMaskFromState(
+  documentWidth: number,
+  documentHeight: number,
+  selection: SelectionState,
+  mode: "new" | "add" | "subtract"
+): SelectionMask {
+  const mask = createSelectionMask(documentWidth, documentHeight);
+  if (mode === "new" || !selection.active || !selection.maskCanvas) return mask;
+
+  const ctx = selection.maskCanvas.getContext("2d");
+  if (!ctx) return mask;
+
+  const copyWidth = Math.min(documentWidth, selection.maskCanvas.width);
+  const copyHeight = Math.min(documentHeight, selection.maskCanvas.height);
+  if (copyWidth <= 0 || copyHeight <= 0) return mask;
+
+  const pixels = ctx.getImageData(0, 0, copyWidth, copyHeight).data;
+  for (let y = 0; y < copyHeight; y++) {
+    const srcRow = y * copyWidth * 4;
+    const dstRow = y * documentWidth;
+    for (let x = 0; x < copyWidth; x++) {
+      mask.data[dstRow + x] = pixels[srcRow + x * 4];
+    }
+  }
+  return mask;
+}
+
+function selectionMaskForLayer(selectionCanvas: HTMLCanvasElement, layer: Layer): HTMLCanvasElement {
+  const width = Math.max(1, Math.round(layer.width || layer.canvas?.width || 1));
+  const height = Math.max(1, Math.round(layer.height || layer.canvas?.height || 1));
+  const maskCanvas = document.createElement("canvas");
+  maskCanvas.width = width;
+  maskCanvas.height = height;
+  const ctx = maskCanvas.getContext("2d");
+  if (ctx) {
+    ctx.clearRect(0, 0, width, height);
+    ctx.drawImage(selectionCanvas, -layer.x, -layer.y);
+  }
+  return maskCanvas;
+}
+
 export interface EditorState {
   document: PhotoDocument;
   activeTool: ToolType;
@@ -884,7 +925,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   // Selection Implementations
   setRectSelection: (x, y, width, height, mode = "new") => {
     const doc = get().document;
-    const mask = createSelectionMask(doc.width, doc.height);
+    const mask = createSelectionMaskFromState(doc.width, doc.height, get().selection, mode);
     selectRect(mask, x, y, width, height, mode);
     const canvas = maskToCanvas(mask);
 
@@ -900,7 +941,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   setEllipseSelection: (cx, cy, rx, ry, mode = "new") => {
     const doc = get().document;
-    const mask = createSelectionMask(doc.width, doc.height);
+    const mask = createSelectionMaskFromState(doc.width, doc.height, get().selection, mode);
     selectEllipse(mask, cx, cy, rx, ry, mode);
     const canvas = maskToCanvas(mask);
 
@@ -916,7 +957,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   setPolygonSelection: (points, mode = "new") => {
     const doc = get().document;
-    const mask = createSelectionMask(doc.width, doc.height);
+    const mask = createSelectionMaskFromState(doc.width, doc.height, get().selection, mode);
     selectPolygon(mask, points, mode);
     const canvas = maskToCanvas(mask);
 
@@ -935,11 +976,22 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const activeLayer = doc.layers.find((l) => l.id === doc.activeLayerId);
     if (!activeLayer || !activeLayer.canvas) return;
 
-    const ctx = activeLayer.canvas.getContext("2d");
-    if (!ctx) return;
+    const sampleCanvas = document.createElement("canvas");
+    sampleCanvas.width = doc.width;
+    sampleCanvas.height = doc.height;
+    const sampleCtx = sampleCanvas.getContext("2d");
+    if (!sampleCtx) return;
+    sampleCtx.clearRect(0, 0, doc.width, doc.height);
+    sampleCtx.drawImage(
+      activeLayer.canvas,
+      activeLayer.x,
+      activeLayer.y,
+      activeLayer.width,
+      activeLayer.height
+    );
 
-    const mask = createSelectionMask(doc.width, doc.height);
-    selectMagicWand(mask, ctx, startX, startY, tolerance, contiguous, "new");
+    const mask = createSelectionMaskFromState(doc.width, doc.height, get().selection, "new");
+    selectMagicWand(mask, sampleCtx, startX, startY, tolerance, contiguous, "new");
     const canvas = maskToCanvas(mask);
 
     set({
@@ -1018,8 +1070,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     if (!sel.active || !sel.maskCanvas || !activeLayer || !activeLayer.canvas) return;
 
     get().pushHistory("Delete Selected Pixels");
-    deleteSelectedPixels(activeLayer.canvas, sel.maskCanvas);
-    set({ document: { ...doc } });
+    deleteSelectedPixels(activeLayer.canvas, selectionMaskForLayer(sel.maskCanvas, activeLayer));
+    const nextDoc = { ...doc };
+    set({ document: nextDoc });
+    saveDocumentToIDB(nextDoc);
   },
 
   selectionToLayerMask: () => {
@@ -1029,10 +1083,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     if (!sel.active || !sel.maskCanvas || !activeId) return;
 
     get().pushHistory("Selection to Layer Mask");
-    const maskCopy = document.createElement("canvas");
-    maskCopy.width = sel.maskCanvas.width;
-    maskCopy.height = sel.maskCanvas.height;
-    maskCopy.getContext("2d")?.drawImage(sel.maskCanvas, 0, 0);
+    const maskCopy = selectionMaskForLayer(sel.maskCanvas, doc.layers.find((l) => l.id === activeId) || doc.layers[0]);
 
     const newLayers = doc.layers.map((l) => {
       if (l.id === activeId) {

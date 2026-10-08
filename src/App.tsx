@@ -45,7 +45,7 @@ export function App() {
       <ToolOptionsBar />
 
       {/* 3. Main Workspace Core Dock */}
-      <div className="flex flex-1 overflow-hidden relative">
+      <div className="app-main flex flex-1 overflow-hidden relative">
         {/* Left Toolbar */}
         <LeftToolbar />
 

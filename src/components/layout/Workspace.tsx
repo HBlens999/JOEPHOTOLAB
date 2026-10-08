@@ -2,6 +2,7 @@ import React, { useRef, useEffect, useState, useCallback } from "react";
 import { useEditorStore } from "../../store/editorStore";
 import { ToolType } from "../../types/document";
 import { WebGLRenderer } from "../../engine/WebGLRenderer";
+import { ColorPanel } from "./ColorPanel";
 
 export const Workspace: React.FC = () => {
   const {
@@ -709,6 +710,9 @@ export const Workspace: React.FC = () => {
           );
         })()}
       </div>
+
+      {/* Always-visible CorelDRAW-style color palette */}
+      <ColorPanel />
 
       {/* Rulers / Viewport Pixel Coordinate HUD */}
       <div className="absolute bottom-2 left-3 bg-[#161820]/90 backdrop-blur-sm border border-[#2b303c] rounded px-2 py-0.5 text-[10px] text-[#8e95a5] font-mono tabular-nums flex items-center gap-2 pointer-events-none">

@@ -23,6 +23,7 @@ export const Workspace: React.FC = () => {
     setActiveLayer,
     setBrushSettings,
     cropDocument,
+    addShapeLayer,
     setRectSelection,
     setEllipseSelection,
     setPolygonSelection,
@@ -205,17 +206,34 @@ export const Workspace: React.FC = () => {
       return;
     }
 
-    // Move tool: Start layer drag
+    // Pick / Move tool: select the topmost visible layer under the cursor,
+    // then drag that layer. This is the editor's primary pick tool.
     if (activeTool === "move") {
-      const activeLayer = doc.layers.find((l) => l.id === doc.activeLayerId);
-      if (activeLayer) {
+      const hit = [...doc.layers]
+        .filter((layer) => layer.visible && !layer.locked)
+        .reverse()
+        .find((layer) =>
+          x >= layer.x &&
+          x <= layer.x + layer.width &&
+          y >= layer.y &&
+          y <= layer.y + layer.height
+        );
+      if (hit) {
+        setActiveLayer(hit.id);
         setLayerDragStart({
           startX: x,
           startY: y,
-          layerX: activeLayer.x,
-          layerY: activeLayer.y,
+          layerX: hit.x,
+          layerY: hit.y,
         });
       }
+      return;
+    }
+
+    // Vector shape tools.
+    if (activeTool === "shape-rect" || activeTool === "shape-ellipse") {
+      setSelectionDragStart({ x, y });
+      setCurrentSelectionRect({ x, y, w: 0, h: 0 });
       return;
     }
 
@@ -321,7 +339,7 @@ export const Workspace: React.FC = () => {
     }
 
     // Selection marquee drag
-    if (selectionDragStart && ["marquee-rect", "marquee-ellipse", "crop"].includes(activeTool)) {
+    if (selectionDragStart && ["marquee-rect", "marquee-ellipse", "crop", "shape-rect", "shape-ellipse"].includes(activeTool)) {
       const minX = Math.min(selectionDragStart.x, x);
       const minY = Math.min(selectionDragStart.y, y);
       const w = Math.abs(x - selectionDragStart.x);
@@ -364,6 +382,21 @@ export const Workspace: React.FC = () => {
     setDragStart(null);
     setLayerDragStart(null);
     strokeOriginRef.current = null;
+
+    if ((activeTool === "shape-rect" || activeTool === "shape-ellipse") && selectionDragStart && currentSelectionRect) {
+      if (currentSelectionRect.w >= 2 && currentSelectionRect.h >= 2) {
+        addShapeLayer(
+          activeTool === "shape-ellipse" ? "ellipse" : "rectangle",
+          currentSelectionRect.x,
+          currentSelectionRect.y,
+          currentSelectionRect.w,
+          currentSelectionRect.h
+        );
+      }
+      setSelectionDragStart(null);
+      setCurrentSelectionRect(null);
+      return;
+    }
 
     // Commit crop before normal marquee selection handling.
     if (activeTool === "crop" && selectionDragStart && currentSelectionRect) {

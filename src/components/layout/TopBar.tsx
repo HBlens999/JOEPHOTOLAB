@@ -79,7 +79,7 @@ export const TopBar: React.FC = () => {
   const zoomPercent = Math.round(doc.zoom * 100);
 
   return (
-    <header className="h-10 bg-[#16181d] border-b border-[#252830] flex items-center justify-between px-3 text-xs select-none z-50 shrink-0">
+    <header className="app-topbar h-10 bg-[#16181d] border-b border-[#252830] flex items-center justify-between px-3 text-xs select-none z-50 shrink-0">
       <input
         type="file"
         ref={fileInputRef}

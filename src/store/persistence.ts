@@ -4,6 +4,10 @@ const DB_NAME = "Joephotolab_Storage";
 const STORE_NAME = "documents";
 const DB_VERSION = 1;
 
+// Single IndexedDB record used for the current editor session. This must live
+// in this module because both saveDocumentToIDB and loadDocumentFromIDB use it.
+const CURRENT_SESSION_ID = "current_session_doc_v2";
+
 function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);

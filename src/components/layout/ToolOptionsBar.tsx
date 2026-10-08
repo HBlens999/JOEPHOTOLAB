@@ -272,7 +272,5 @@ export const ToolOptionsBar: React.FC = () => {
       )}
 
     </div>
-      )}
-    </div>
   );
 };

@@ -2106,7 +2106,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         `Could not place image: ${err?.message || "unsupported or corrupted image"}`,
         "error"
       );
-    },
+    }
+  },
   exportProject: () => {
     exportProjectJPL(get().document);
   },

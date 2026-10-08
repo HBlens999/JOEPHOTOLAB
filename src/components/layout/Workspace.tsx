@@ -31,6 +31,7 @@ export const Workspace: React.FC = () => {
     setPolygonSelection,
     setWandSelection,
     setLayerTransform,
+    importFile,
   } = useEditorStore();
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -44,6 +45,7 @@ export const Workspace: React.FC = () => {
   const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null);
   const [cursorPos, setCursorPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [editingTextLayerId, setEditingTextLayerId] = useState<string | null>(null);
+  const [isFileDragOver, setIsFileDragOver] = useState(false);
 
   // For selection dragging
   const [selectionDragStart, setSelectionDragStart] = useState<{ x: number; y: number } | null>(null);
@@ -186,6 +188,48 @@ export const Workspace: React.FC = () => {
     },
     [doc.panX, doc.panY, doc.zoom, doc.width, doc.height]
   );
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (Array.from(e.dataTransfer.items || []).some((item) => item.kind === "file")) {
+      setIsFileDragOver(true);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = "copy";
+    if (Array.from(e.dataTransfer.items || []).some((item) => item.kind === "file")) {
+      setIsFileDragOver(true);
+    }
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+      setIsFileDragOver(false);
+    }
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsFileDragOver(false);
+
+    const files = Array.from(e.dataTransfer.files || []);
+    const imageFile = files.find((file) => file.type.startsWith("image/"));
+    if (!imageFile) {
+      if (files.length > 0) {
+        useEditorStore.getState().showNotification("Drop an image file such as PNG, JPG, JPEG or WebP.", "warning");
+      }
+      return;
+    }
+
+    await importFile(imageFile);
+  };
 
   // Pointer Down
   const handlePointerDown = (e: React.PointerEvent) => {
@@ -518,8 +562,12 @@ export const Workspace: React.FC = () => {
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
+      onDragEnter={handleDragEnter}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
       onDoubleClick={(e) => { handleDoubleClick(e); handleWorkspaceDoubleClick(e); }}
-      className="flex-1 relative overflow-hidden bg-[#0d0e12] flex items-center justify-center"
+      className={`flex-1 relative overflow-hidden bg-[#0d0e12] flex items-center justify-center ${isFileDragOver ? "ring-2 ring-inset ring-cyan-400" : ""}`}
       style={{
         cursor:
           isSpacePressed || activeTool === "pan"
@@ -549,6 +597,14 @@ export const Workspace: React.FC = () => {
           transformOrigin: "center center",
         }}
       >
+        {isFileDragOver && (
+          <div className="absolute inset-0 z-40 pointer-events-none flex items-center justify-center bg-cyan-500/10 border-2 border-dashed border-cyan-400">
+            <div className="px-6 py-4 rounded-xl bg-black/80 text-white text-sm font-semibold shadow-2xl">
+              Drop image to open in JoePhotoLab
+            </div>
+          </div>
+        )}
+
         {/* White document surface. Transparency is still represented by
             the document's actual backgroundColor; the default editor document
             is intentionally white, not the old dark checkerboard. */}

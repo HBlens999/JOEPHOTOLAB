@@ -1,1 +1,251 @@
 @import "tailwindcss";
+
+
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+  overscroll-behavior: none;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+.app-shell,
+.app-main,
+.app-workspace {
+  min-width: 0;
+  min-height: 0;
+}
+
+.app-topbar,
+.app-tooloptions {
+  min-width: 0;
+}
+
+.app-workspace {
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.app-canvas-frame {
+  will-change: transform;
+}
+
+.mobile-panel-toggle,
+.mobile-panel-close {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  .app-shell {
+    min-height: 100dvh;
+    height: 100dvh !important;
+  }
+
+  .app-topbar {
+    height: 46px !important;
+    min-height: 46px !important;
+    justify-content: flex-start !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    scrollbar-width: none;
+    padding-left: 6px !important;
+    padding-right: 6px !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .app-topbar::-webkit-scrollbar,
+  .app-tooloptions::-webkit-scrollbar,
+  .app-tool-list::-webkit-scrollbar {
+    display: none;
+  }
+
+  .app-topbar > * {
+    flex-shrink: 0;
+  }
+
+  .app-tooloptions {
+    height: 42px !important;
+    min-height: 42px !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    white-space: nowrap;
+    scrollbar-width: none;
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .app-main {
+    position: relative !important;
+    min-height: 0 !important;
+  }
+
+  .app-left-toolbar {
+    position: absolute !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100% !important;
+    height: 56px !important;
+    min-height: 56px !important;
+    flex-direction: row !important;
+    justify-content: flex-start !important;
+    align-items: center !important;
+    padding: 4px !important;
+    border-right: 0 !important;
+    border-top: 1px solid #252830 !important;
+    box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.28);
+    z-index: 60 !important;
+  }
+
+  .app-tool-list {
+    flex: 1 1 auto !important;
+    width: auto !important;
+    height: 48px !important;
+    min-width: 0 !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    padding: 0 2px !important;
+    gap: 4px !important;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .app-tool-list > button {
+    flex: 0 0 40px !important;
+    width: 40px !important;
+    height: 40px !important;
+  }
+
+  .app-color-swatch {
+    width: auto !important;
+    height: 48px !important;
+    padding: 0 8px 0 8px !important;
+    border-top: 0 !important;
+    border-left: 1px solid #252830 !important;
+    flex-direction: row !important;
+    gap: 6px !important;
+    justify-content: center !important;
+    flex: 0 0 auto !important;
+  }
+
+  .app-color-swatch > .relative {
+    width: 32px !important;
+    height: 32px !important;
+  }
+
+  .mobile-panel-toggle,
+  .mobile-panel-close {
+    display: flex !important;
+  }
+
+  .mobile-panel-toggle {
+    position: fixed;
+    right: 8px;
+    bottom: 64px;
+    z-index: 80;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 11px;
+    border: 1px solid #343a49;
+    border-radius: 10px;
+    background: rgba(20, 23, 30, 0.96);
+    color: #ffffff;
+    font-size: 11px;
+    font-weight: 700;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+    touch-action: manipulation;
+  }
+
+  .mobile-panel-close {
+    display: none !important;
+    position: absolute;
+    right: 5px;
+    top: 5px;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 7px;
+    color: #c8ceda;
+    background: rgba(255, 255, 255, 0.06);
+    z-index: 3;
+  }
+
+  .app-right-sidebar {
+    display: none !important;
+    position: absolute !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 56px !important;
+    width: 100% !important;
+    height: min(32vh, 300px) !important;
+    max-height: 300px !important;
+    min-height: 180px !important;
+    border-left: 0 !important;
+    border-top: 1px solid #252830 !important;
+    box-shadow: 0 -12px 30px rgba(0, 0, 0, 0.35);
+    z-index: 50 !important;
+  }
+
+  .app-right-sidebar.mobile-open {
+    display: flex !important;
+  }
+
+  .app-right-sidebar.mobile-open .mobile-panel-close {
+    display: flex !important;
+  }
+
+  .app-workspace {
+    width: 100% !important;
+    height: 100% !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+  }
+
+  .app-canvas-frame {
+    max-width: none;
+    max-height: none;
+    touch-action: none;
+  }
+}
+
+@media (max-width: 420px) {
+  .mobile-panel-toggle {
+    bottom: 62px;
+    right: 6px;
+  }
+
+  .app-topbar {
+    height: 42px !important;
+    min-height: 42px !important;
+  }
+
+  .app-tooloptions {
+    height: 40px !important;
+    min-height: 40px !important;
+  }
+
+  .app-left-toolbar {
+    height: 54px !important;
+    min-height: 54px !important;
+  }
+
+  .app-right-sidebar {
+    bottom: 54px !important;
+    height: 30vh !important;
+    min-height: 170px !important;
+  }
+}

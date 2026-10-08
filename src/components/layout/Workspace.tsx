@@ -52,8 +52,18 @@ export const Workspace: React.FC = () => {
   const [currentSelectionRect, setCurrentSelectionRect] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
   const [lassoPoints, setLassoPoints] = useState<Array<{ x: number; y: number }>>([]);
 
-  // For move tool layer dragging
+  // For move tool layer dragging and interactive transform handles
   const [layerDragStart, setLayerDragStart] = useState<{ startX: number; startY: number; layerX: number; layerY: number } | null>(null);
+  type ResizeHandle = "nw" | "ne" | "sw" | "se";
+  const [resizeHandle, setResizeHandle] = useState<ResizeHandle | null>(null);
+  const resizeStartRef = useRef<{
+    startX: number;
+    startY: number;
+    layerX: number;
+    layerY: number;
+    width: number;
+    height: number;
+  } | null>(null);
   const strokeOriginRef = useRef<{ x: number; y: number } | null>(null);
 
   // Initialize WebGLRenderer
@@ -237,6 +247,11 @@ export const Workspace: React.FC = () => {
     const { x, y } = clientToDocCoords(e.clientX, e.clientY);
     setDragStart({ x: e.clientX, y: e.clientY });
 
+    // Transform resize handles take priority over normal layer picking.
+    if (resizeHandle) {
+      return;
+    }
+
     // Middle click or Spacebar held: Pan viewport
     if (e.button === 1 || isSpacePressed || activeTool === "pan") {
       return;
@@ -405,6 +420,55 @@ export const Workspace: React.FC = () => {
       return;
     }
 
+    // Interactive resize: resize the active layer from the selected corner.
+    if (resizeHandle && doc.activeLayerId && resizeStartRef.current) {
+      const start = resizeStartRef.current;
+      const dx = x - start.startX;
+      const dy = y - start.startY;
+      const preserveRatio = e.shiftKey;
+      const ratio = start.width > 0 && start.height > 0 ? start.width / start.height : 1;
+
+      let nextX = start.layerX;
+      let nextY = start.layerY;
+      let nextW = start.width;
+      let nextH = start.height;
+
+      if (resizeHandle === "se") {
+        nextW = Math.max(8, start.width + dx);
+        nextH = Math.max(8, start.height + dy);
+      } else if (resizeHandle === "sw") {
+        nextW = Math.max(8, start.width - dx);
+        nextH = Math.max(8, start.height + dy);
+        nextX = start.layerX + (start.width - nextW);
+      } else if (resizeHandle === "ne") {
+        nextW = Math.max(8, start.width + dx);
+        nextH = Math.max(8, start.height - dy);
+        nextY = start.layerY + (start.height - nextH);
+      } else {
+        nextW = Math.max(8, start.width - dx);
+        nextH = Math.max(8, start.height - dy);
+        nextX = start.layerX + (start.width - nextW);
+        nextY = start.layerY + (start.height - nextH);
+      }
+
+      if (preserveRatio) {
+        if (Math.abs(dx) >= Math.abs(dy)) {
+          nextH = Math.max(8, nextW / ratio);
+        } else {
+          nextW = Math.max(8, nextH * ratio);
+        }
+        if (resizeHandle === "nw" || resizeHandle === "sw") {
+          nextX = start.layerX + start.width - nextW;
+        }
+        if (resizeHandle === "nw" || resizeHandle === "ne") {
+          nextY = start.layerY + start.height - nextH;
+        }
+      }
+
+      setLayerTransform(doc.activeLayerId, nextX, nextY, nextW, nextH);
+      return;
+    }
+
     // Move tool: Dragging active layer
     if (activeTool === "move" && layerDragStart && doc.activeLayerId) {
       const dx = x - layerDragStart.startX;
@@ -490,6 +554,8 @@ export const Workspace: React.FC = () => {
     setIsPointerDown(false);
     setDragStart(null);
     setLayerDragStart(null);
+    setResizeHandle(null);
+    resizeStartRef.current = null;
     strokeOriginRef.current = null;
 
     if ((activeTool === "shape-rect" || activeTool === "shape-ellipse") && selectionDragStart && currentSelectionRect) {
@@ -562,13 +628,15 @@ export const Workspace: React.FC = () => {
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerUp}
       onDragEnter={handleDragEnter}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
       onDoubleClick={(e) => { handleDoubleClick(e); handleWorkspaceDoubleClick(e); }}
-      className={`flex-1 relative overflow-hidden bg-[#0d0e12] flex items-center justify-center ${isFileDragOver ? "ring-2 ring-inset ring-cyan-400" : ""}`}
+      className={`app-workspace flex-1 relative overflow-hidden bg-[#0d0e12] flex items-center justify-center ${isFileDragOver ? "ring-2 ring-inset ring-cyan-400" : ""}`}
       style={{
+        touchAction: "none",
         cursor:
           isSpacePressed || activeTool === "pan"
             ? (isPointerDown ? "grabbing" : "grab")
@@ -589,7 +657,7 @@ export const Workspace: React.FC = () => {
     >
       {/* Viewport Canvas Container */}
       <div
-        className="relative shadow-2xl transition-transform duration-75 ease-out select-none"
+        className="app-canvas-frame relative shadow-2xl transition-transform duration-75 ease-out select-none"
         style={{
           width: doc.width,
           height: doc.height,
@@ -669,11 +737,49 @@ export const Workspace: React.FC = () => {
               height: activeLayer.height,
             }}
           >
-            {/* Corner Handles */}
-            <div className="absolute -top-1.5 -left-1.5 w-3 h-3 bg-white border border-cyan-600 rounded-sm" />
-            <div className="absolute -top-1.5 -right-1.5 w-3 h-3 bg-white border border-cyan-600 rounded-sm" />
-            <div className="absolute -bottom-1.5 -left-1.5 w-3 h-3 bg-white border border-cyan-600 rounded-sm" />
-            <div className="absolute -bottom-1.5 -right-1.5 w-3 h-3 bg-white border border-cyan-600 rounded-sm" />
+            {[ "nw", "ne", "sw", "se" ].map((handle) => {
+              const positionClass =
+                handle === "nw"
+                  ? "-top-2 -left-2"
+                  : handle === "ne"
+                    ? "-top-2 -right-2"
+                    : handle === "sw"
+                      ? "-bottom-2 -left-2"
+                      : "-bottom-2 -right-2";
+              const cursor =
+                handle === "nw" || handle === "se" ? "nwse-resize" : "nesw-resize";
+
+              return (
+                <div
+                  key={handle}
+                  className={`absolute ${positionClass} w-4 h-4 sm:w-3 sm:h-3 bg-white border-2 border-cyan-600 rounded-sm pointer-events-auto touch-none`}
+                  style={{ cursor }}
+                  role="button"
+                  aria-label={`Resize ${handle} handle`}
+                  onPointerDown={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const layer = useEditorStore.getState().document.layers.find(
+                      (item) => item.id === activeLayer.id
+                    );
+                    if (!layer || layer.locked) return;
+
+                    const start = clientToDocCoords(e.clientX, e.clientY);
+                    resizeStartRef.current = {
+                      startX: start.x,
+                      startY: start.y,
+                      layerX: layer.x,
+                      layerY: layer.y,
+                      width: layer.width,
+                      height: layer.height,
+                    };
+                    setResizeHandle(handle as ResizeHandle);
+                    setIsPointerDown(true);
+                    (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+                  }}
+                />
+              );
+            })}
           </div>
         )}
 

@@ -22,8 +22,5 @@
       "type": "durable-object",
       "storage": "sqlite"
     }
-  },
-  "secrets": {
-    "required": ["GEMINI_API_KEY"]
   }
 }

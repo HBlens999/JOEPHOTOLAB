@@ -306,7 +306,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     saveDocumentToIDB(get().document);
   },
 
-  addTextLayer: () => {
+  addTextLayer: (x?: number, y?: number) => {
     get().pushHistory("New Text Layer");
     const doc = get().document;
     const newLayer: Layer = {
@@ -317,8 +317,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       locked: false,
       opacity: 1,
       blendMode: "normal",
-      x: doc.width * 0.1,
-      y: doc.height * 0.4,
+      x: x ?? doc.width * 0.1,
+      y: y ?? doc.height * 0.4,
       width: doc.width * 0.8,
       height: 120,
       rotation: 0,
@@ -1872,20 +1872,32 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       }
     }
 
-    // Standard PNG/JPG/WebP image import
+    // Standard PNG/JPG/WebP image import.
+    // Opening an image creates a clean document sized to the imported file,
+    // then fits it to the available editor viewport so it is immediately visible.
     const reader = new FileReader();
     reader.onload = (e) => {
       const img = new Image();
       img.onload = () => {
         get().pushHistory(`Import ${file.name}`);
-        const canvas = document.createElement("canvas");
-        canvas.width = img.naturalWidth;
-        canvas.height = img.naturalHeight;
-        const ctx = canvas.getContext("2d");
-        ctx?.drawImage(img, 0, 0);
 
+        const width = img.naturalWidth;
+        const height = img.naturalHeight;
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          get().showNotification("Could not create an image canvas.", "error");
+          return;
+        }
+        ctx.clearRect(0, 0, width, height);
+        ctx.drawImage(img, 0, 0, width, height);
+
+        const layerId = `layer_imported_${Date.now()}`;
         const newLayer: Layer = {
-          id: `layer_imported_${Date.now()}`,
+          id: layerId,
           name: file.name.substring(0, 24),
           type: "raster",
           visible: true,
@@ -1894,8 +1906,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           blendMode: "normal",
           x: 0,
           y: 0,
-          width: img.naturalWidth,
-          height: img.naturalHeight,
+          width,
+          height,
           rotation: 0,
           scaleX: 1,
           scaleY: 1,
@@ -1903,18 +1915,43 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           adjustments: getDefaultAdjustments(),
         };
 
-        const currentDoc = get().document;
-        // If current doc has only blank default or imported image is different size
+        const viewportWidth = Math.max(480, window.innerWidth - 360);
+        const viewportHeight = Math.max(320, window.innerHeight - 100);
+        const fitZoom = Math.min(
+          1,
+          viewportWidth / Math.max(1, width),
+          viewportHeight / Math.max(1, height)
+        );
+
+        const newDoc: PhotoDocument = {
+          id: `doc_imported_${Date.now()}`,
+          name: file.name,
+          width,
+          height,
+          resolution: 300,
+          colorSpace: "sRGB",
+          bitDepth: 8,
+          backgroundColor: "transparent",
+          layers: [newLayer],
+          activeLayerId: layerId,
+          selectedLayerIds: [layerId],
+          guides: [],
+          rulers: true,
+          grid: { visible: false, size: 24 },
+          zoom: Math.max(0.05, fitZoom),
+          panX: 0,
+          panY: 0,
+        };
+
         set({
-          document: {
-            ...currentDoc,
-            width: Math.max(currentDoc.width, img.naturalWidth),
-            height: Math.max(currentDoc.height, img.naturalHeight),
-            layers: [newLayer, ...currentDoc.layers],
-            activeLayerId: newLayer.id,
-          },
+          document: newDoc,
+          activePanelTab: "layers",
         });
-        saveDocumentToIDB(get().document);
+        saveDocumentToIDB(newDoc);
+      };
+
+      img.onerror = () => {
+        get().showNotification("Could not decode the selected image.", "error");
       };
       img.src = e.target?.result as string;
     };

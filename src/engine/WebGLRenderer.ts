@@ -27,6 +27,7 @@ uniform vec2 u_resolution;
 uniform sampler2D u_curveLutR;
 uniform sampler2D u_curveLutG;
 uniform sampler2D u_curveLutB;
+uniform bool u_passthrough;
 
 // Basic Adjustments
 uniform float u_brightness;       // -1.0 to 1.0
@@ -112,6 +113,14 @@ float hueDist(float h1, float h2) {
 void main() {
   vec2 uv = v_texCoord;
   vec4 color = texture(u_image, uv);
+
+  // The final document composite is already fully composited and must not be
+  // processed by the grading shader. This direct path prevents LUT/state
+  // leakage from ever changing imported images or the white artboard.
+  if (u_passthrough) {
+    fragColor = color;
+    return;
+  }
 
   // Apply Sharpening if enabled
   if (u_sharpen > 0.0) {
@@ -750,6 +759,7 @@ export class WebGLRenderer {
     gl.activeTexture(gl.TEXTURE3);
     gl.bindTexture(gl.TEXTURE_2D, this.lutTextureB);
     gl.uniform1i(gl.getUniformLocation(this.program, "u_curveLutB"), 3);
+    gl.uniform1i(gl.getUniformLocation(this.program, "u_passthrough"), 0);
 
     // HSL Bands (9 vec3: Master + 8 bands)
     const hslBandsData = new Float32Array(27);
@@ -780,6 +790,8 @@ export class WebGLRenderer {
   private setUniformsIdentity() {
     if (!this.gl || !this.program) return;
     const gl = this.gl;
+
+    gl.uniform1i(gl.getUniformLocation(this.program, "u_passthrough"), 1);
 
     // The fragment shader always evaluates the three curve LUT samplers.
     // Explicitly bind the identity LUTs here; otherwise the samplers retain

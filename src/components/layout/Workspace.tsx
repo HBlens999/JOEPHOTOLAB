@@ -21,6 +21,8 @@ export const Workspace: React.FC = () => {
     addTextLayer,
     updateTextLayer,
     setActiveLayer,
+    setBrushSettings,
+    cropDocument,
     setRectSelection,
     setEllipseSelection,
     setPolygonSelection,
@@ -164,6 +166,45 @@ export const Workspace: React.FC = () => {
       return;
     }
 
+    // Zoom tool: click to zoom in around the pointer; Shift+click zooms out.
+    if (activeTool === "zoom") {
+      const factor = e.shiftKey ? 0.67 : 1.5;
+      const newZoom = Math.min(32, Math.max(0.05, doc.zoom * factor));
+      const rect = containerRef.current?.getBoundingClientRect();
+      if (rect) {
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+        const newPanX = mouseX - rect.width / 2 - (x - doc.width / 2) * newZoom;
+        const newPanY = mouseY - rect.height / 2 - (y - doc.height / 2) * newZoom;
+        setZoom(newZoom);
+        setPan(newPanX, newPanY);
+      }
+      return;
+    }
+
+    // Eyedropper: sample the visible composite at the clicked document pixel.
+    if (activeTool === "eyedropper") {
+      const sampleCanvas = offscreenCanvasRef.current;
+      const ctx = sampleCanvas?.getContext("2d");
+      if (ctx && x >= 0 && y >= 0 && x < doc.width && y < doc.height) {
+        const pixel = ctx.getImageData(Math.floor(x), Math.floor(y), 1, 1).data;
+        if (pixel[3] > 0) {
+          const hex = "#" + [pixel[0], pixel[1], pixel[2]]
+            .map((v) => v.toString(16).padStart(2, "0"))
+            .join("");
+          setBrushSettings({ color: hex });
+        }
+      }
+      return;
+    }
+
+    // Crop: drag a rectangular crop region.
+    if (activeTool === "crop") {
+      setSelectionDragStart({ x, y });
+      setCurrentSelectionRect({ x, y, w: 0, h: 0 });
+      return;
+    }
+
     // Move tool: Start layer drag
     if (activeTool === "move") {
       const activeLayer = doc.layers.find((l) => l.id === doc.activeLayerId);
@@ -280,7 +321,7 @@ export const Workspace: React.FC = () => {
     }
 
     // Selection marquee drag
-    if (selectionDragStart && ["marquee-rect", "marquee-ellipse"].includes(activeTool)) {
+    if (selectionDragStart && ["marquee-rect", "marquee-ellipse", "crop"].includes(activeTool)) {
       const minX = Math.min(selectionDragStart.x, x);
       const minY = Math.min(selectionDragStart.y, y);
       const w = Math.abs(x - selectionDragStart.x);
@@ -323,6 +364,21 @@ export const Workspace: React.FC = () => {
     setDragStart(null);
     setLayerDragStart(null);
     strokeOriginRef.current = null;
+
+    // Commit crop before normal marquee selection handling.
+    if (activeTool === "crop" && selectionDragStart && currentSelectionRect) {
+      if (currentSelectionRect.w >= 2 && currentSelectionRect.h >= 2) {
+        cropDocument(
+          currentSelectionRect.x,
+          currentSelectionRect.y,
+          currentSelectionRect.w,
+          currentSelectionRect.h
+        );
+      }
+      setSelectionDragStart(null);
+      setCurrentSelectionRect(null);
+      return;
+    }
 
     // Commit marquee selection
     if (selectionDragStart && currentSelectionRect) {

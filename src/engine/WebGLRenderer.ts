@@ -531,6 +531,34 @@ export class WebGLRenderer {
           offCtx.stroke();
         }
         offCtx.restore();
+      } else if (layer.type === "shape" && layer.shapeProps) {
+        const props = layer.shapeProps;
+        ctx.save();
+        ctx.globalAlpha = layer.opacity;
+        ctx.globalCompositeOperation = this.mapBlendMode(layer.blendMode);
+        ctx.translate(layer.x + layer.width / 2, layer.y + layer.height / 2);
+        ctx.rotate((layer.rotation * Math.PI) / 180);
+        ctx.translate(-layer.width / 2, -layer.height / 2);
+        ctx.beginPath();
+        if (props.kind === "ellipse") {
+          ctx.ellipse(layer.width / 2, layer.height / 2, Math.abs(layer.width / 2), Math.abs(layer.height / 2), 0, 0, Math.PI * 2);
+        } else {
+          const r = Math.min(Math.max(0, props.cornerRadius), Math.min(layer.width, layer.height) / 2);
+          if (r > 0 && "roundRect" in ctx) ctx.roundRect(0, 0, layer.width, layer.height, r);
+          else ctx.rect(0, 0, layer.width, layer.height);
+        }
+        if (props.fillOpacity > 0) {
+          ctx.globalAlpha = layer.opacity * props.fillOpacity;
+          ctx.fillStyle = props.fill || "#000000";
+          ctx.fill();
+        }
+        if (props.strokeOpacity > 0 && props.strokeWidth > 0) {
+          ctx.globalAlpha = layer.opacity * props.strokeOpacity;
+          ctx.strokeStyle = props.stroke || "#000000";
+          ctx.lineWidth = props.strokeWidth;
+          ctx.stroke();
+        }
+        ctx.restore();
       } else if (layer.type === "text" && layer.textProps) {
         offCtx.save();
         offCtx.globalAlpha = layer.opacity;

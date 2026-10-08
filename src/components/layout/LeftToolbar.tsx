@@ -31,10 +31,6 @@ interface ToolItem {
 
 export const LeftToolbar: React.FC = () => {
   const { activeTool, setTool, brushSettings, setBrushSettings } = useEditorStore();
-  const [selectionIndex, setSelectionIndex] = React.useState<0 | 1>(
-    activeTool === "marquee-ellipse" ? 1 : 0
-  );
-
   const tools: ToolItem[] = [
     { id: "move", label: "Pick / Move / Transform", shortcut: "V", icon: <Move className="w-4 h-4" /> },
     { id: "pan", label: "Hand / Pan", shortcut: "H", icon: <Hand className="w-4 h-4" /> },
@@ -58,9 +54,8 @@ export const LeftToolbar: React.FC = () => {
   ];
 
   const handleSelectionTool = () => {
-    const nextIndex = selectionIndex === 0 ? 1 : 0;
-    setSelectionIndex(nextIndex as 0 | 1);
-    setTool(nextIndex === 0 ? "marquee-rect" : "marquee-ellipse");
+    const nextTool = activeTool === "marquee-rect" ? "marquee-ellipse" : "marquee-rect";
+    setTool(nextTool);
   };
 
   const handleColorSwap = () => {

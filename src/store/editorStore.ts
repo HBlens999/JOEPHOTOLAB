@@ -12,6 +12,7 @@ import {
   PerspectivePoint,
   RAWAdjustments,
   TextProperties,
+  ShapeProperties,
 } from "../types/document";
 import { createDefaultDocument } from "./sampleDocument";
 import { saveDocumentToIDB, exportProjectJPL } from "./persistence";
@@ -108,6 +109,8 @@ export interface EditorState {
   addRasterLayer: (name?: string) => void;
   addTextLayer: (x?: number, y?: number) => void;
   updateTextLayer: (id: string, props: Partial<TextProperties>) => void;
+  addShapeLayer: (kind: ShapeProperties["kind"], x: number, y: number, width: number, height: number) => void;
+  updateShapeLayer: (id: string, props: Partial<ShapeProperties>) => void;
   cropDocument: (x: number, y: number, width: number, height: number) => void;
   addAdjustmentLayer: (name: string, preset?: Partial<AdjustmentSettings>) => void;
   convertDocumentColorSpace: (targetSpace: SupportedColorSpace) => void;
@@ -367,6 +370,60 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           l.id === id && l.type === "text" && l.textProps
             ? { ...l, textProps: { ...l.textProps, ...props } }
             : l
+        ),
+      },
+    });
+    saveDocumentToIDB(get().document);
+  },
+
+  addShapeLayer: (kind, x, y, width, height) => {
+    get().pushHistory(`New ${kind === "ellipse" ? "Ellipse" : "Rectangle"}`);
+    const doc = get().document;
+    const newLayer: Layer = {
+      id: `shape_${Date.now()}`,
+      name: kind === "ellipse" ? "Ellipse" : "Rectangle",
+      type: "shape",
+      visible: true,
+      locked: false,
+      opacity: 1,
+      blendMode: "normal",
+      x,
+      y,
+      width: Math.max(1, width),
+      height: Math.max(1, height),
+      rotation: 0,
+      scaleX: 1,
+      scaleY: 1,
+      shapeProps: {
+        kind,
+        fill: "#ffffff",
+        fillOpacity: 1,
+        stroke: "#000000",
+        strokeOpacity: 1,
+        strokeWidth: 2,
+        cornerRadius: 0,
+      },
+    };
+    set({
+      document: {
+        ...doc,
+        layers: [newLayer, ...doc.layers],
+        activeLayerId: newLayer.id,
+        selectedLayerIds: [newLayer.id],
+      },
+    });
+    saveDocumentToIDB(get().document);
+  },
+
+  updateShapeLayer: (id, props) => {
+    const doc = get().document;
+    set({
+      document: {
+        ...doc,
+        layers: doc.layers.map((layer) =>
+          layer.id === id && layer.type === "shape" && layer.shapeProps
+            ? { ...layer, shapeProps: { ...layer.shapeProps, ...props } }
+            : layer
         ),
       },
     });

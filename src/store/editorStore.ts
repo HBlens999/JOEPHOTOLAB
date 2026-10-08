@@ -27,6 +27,7 @@ import {
   selectEllipse,
   selectPolygon,
   selectMagicWand,
+  selectQuickBrush,
   invertSelectionMask,
   featherSelectionMask,
   maskToCanvas,
@@ -59,6 +60,58 @@ export interface AIJobStatus {
   status: "queued" | "processing" | "completed" | "failed";
   progress: number;
   error?: string;
+}
+
+function createSelectionMaskFromState(
+  documentWidth: number,
+  documentHeight: number,
+  selection: SelectionState,
+  mode: "new" | "add" | "subtract"
+): SelectionMask {
+  const mask = createSelectionMask(documentWidth, documentHeight);
+  if (mode === "new" || !selection.active || !selection.maskCanvas) return mask;
+
+  const ctx = selection.maskCanvas.getContext("2d");
+  if (!ctx) return mask;
+
+  const copyWidth = Math.min(documentWidth, selection.maskCanvas.width);
+  const copyHeight = Math.min(documentHeight, selection.maskCanvas.height);
+  if (copyWidth <= 0 || copyHeight <= 0) return mask;
+
+  const pixels = ctx.getImageData(0, 0, copyWidth, copyHeight).data;
+  for (let y = 0; y < copyHeight; y++) {
+    const srcRow = y * copyWidth * 4;
+    const dstRow = y * documentWidth;
+    for (let x = 0; x < copyWidth; x++) {
+      mask.data[dstRow + x] = pixels[srcRow + x * 4];
+    }
+  }
+  return mask;
+}
+
+function selectionMaskForLayer(selectionCanvas: HTMLCanvasElement, layer: Layer): HTMLCanvasElement {
+  const width = Math.max(1, Math.round(layer.width || layer.canvas?.width || 1));
+  const height = Math.max(1, Math.round(layer.height || layer.canvas?.height || 1));
+  const maskCanvas = document.createElement("canvas");
+  maskCanvas.width = width;
+  maskCanvas.height = height;
+  const ctx = maskCanvas.getContext("2d");
+  if (ctx) {
+    ctx.clearRect(0, 0, width, height);
+    ctx.drawImage(selectionCanvas, -layer.x, -layer.y);
+  }
+  return maskCanvas;
+}
+
+let documentAutosaveTimer: ReturnType<typeof setTimeout> | null = null;
+
+function scheduleDocumentAutosave(readDocument: () => PhotoDocument) {
+  if (documentAutosaveTimer) clearTimeout(documentAutosaveTimer);
+  documentAutosaveTimer = setTimeout(() => {
+    void saveDocumentToIDB(readDocument()).catch((err) => {
+      console.warn("Deferred document autosave failed:", err);
+    });
+  }, 500);
 }
 
 export interface EditorState {
@@ -137,6 +190,7 @@ export interface EditorState {
   setEllipseSelection: (cx: number, cy: number, rx: number, ry: number, mode?: "new" | "add" | "subtract") => void;
   setPolygonSelection: (points: Array<{ x: number; y: number }>, mode?: "new" | "add" | "subtract") => void;
   setWandSelection: (startX: number, startY: number, tolerance?: number, contiguous?: boolean) => void;
+  setQuickSelection: (startX: number, startY: number, radius: number, tolerance?: number) => void;
   clearSelection: () => void;
   invertSelection: () => void;
   featherSelection: (radius: number) => void;
@@ -651,8 +705,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           ...l,
           x,
           y,
-          width: width ?? l.width,
-          height: height ?? l.height,
+          width: Math.max(1, width ?? l.width),
+          height: Math.max(1, height ?? l.height),
           rotation: rotation ?? l.rotation,
         };
       }
@@ -679,7 +733,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       return l;
     });
 
-    set({ document: { ...doc, layers: newLayers } });
+    const nextDoc = { ...doc, layers: newLayers };
+    set({ document: nextDoc });
+    scheduleDocumentAutosave(() => useEditorStore.getState().document);
   },
 
   updateRAWAdjustments: (rawAdjustments) => {
@@ -794,11 +850,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       }
     }
 
+    const sourceOffsetX = sourceCanvas === activeLayer.canvas ? activeLayer.x : 0;
+    const sourceOffsetY = sourceCanvas === activeLayer.canvas ? activeLayer.y : 0;
+
     applyCloneStamp(
       ctx,
       sourceCanvas,
-      effSrcX,
-      effSrcY,
+      effSrcX - sourceOffsetX,
+      effSrcY - sourceOffsetY,
       destX - activeLayer.x,
       destY - activeLayer.y,
       {
@@ -849,11 +908,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       }
     }
 
+    const sourceOffsetX = sourceCanvas === activeLayer.canvas ? activeLayer.x : 0;
+    const sourceOffsetY = sourceCanvas === activeLayer.canvas ? activeLayer.y : 0;
+
     applyHealingBrush(
       ctx,
       sourceCanvas,
-      effSrcX,
-      effSrcY,
+      effSrcX - sourceOffsetX,
+      effSrcY - sourceOffsetY,
       destX - activeLayer.x,
       destY - activeLayer.y,
       {
@@ -884,7 +946,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   // Selection Implementations
   setRectSelection: (x, y, width, height, mode = "new") => {
     const doc = get().document;
-    const mask = createSelectionMask(doc.width, doc.height);
+    const mask = createSelectionMaskFromState(doc.width, doc.height, get().selection, mode);
     selectRect(mask, x, y, width, height, mode);
     const canvas = maskToCanvas(mask);
 
@@ -900,7 +962,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   setEllipseSelection: (cx, cy, rx, ry, mode = "new") => {
     const doc = get().document;
-    const mask = createSelectionMask(doc.width, doc.height);
+    const mask = createSelectionMaskFromState(doc.width, doc.height, get().selection, mode);
     selectEllipse(mask, cx, cy, rx, ry, mode);
     const canvas = maskToCanvas(mask);
 
@@ -916,7 +978,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   setPolygonSelection: (points, mode = "new") => {
     const doc = get().document;
-    const mask = createSelectionMask(doc.width, doc.height);
+    const mask = createSelectionMaskFromState(doc.width, doc.height, get().selection, mode);
     selectPolygon(mask, points, mode);
     const canvas = maskToCanvas(mask);
 
@@ -935,11 +997,24 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const activeLayer = doc.layers.find((l) => l.id === doc.activeLayerId);
     if (!activeLayer || !activeLayer.canvas) return;
 
-    const ctx = activeLayer.canvas.getContext("2d");
-    if (!ctx) return;
+    const sampleCanvas = document.createElement("canvas");
+    sampleCanvas.width = doc.width;
+    sampleCanvas.height = doc.height;
+    const sampleCtx = sampleCanvas.getContext("2d");
+    if (!sampleCtx) return;
+    sampleCtx.clearRect(0, 0, doc.width, doc.height);
+    sampleCtx.drawImage(
+      activeLayer.canvas,
+      activeLayer.x,
+      activeLayer.y,
+      activeLayer.width,
+      activeLayer.height
+    );
 
-    const mask = createSelectionMask(doc.width, doc.height);
-    selectMagicWand(mask, ctx, startX, startY, tolerance, contiguous, "new");
+    const clampedX = Math.max(0, Math.min(doc.width - 1, Math.round(startX)));
+    const clampedY = Math.max(0, Math.min(doc.height - 1, Math.round(startY)));
+    const mask = createSelectionMaskFromState(doc.width, doc.height, get().selection, "new");
+    selectMagicWand(mask, sampleCtx, clampedX, clampedY, tolerance, contiguous, "new");
     const canvas = maskToCanvas(mask);
 
     set({
@@ -951,6 +1026,46 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       },
     });
   },
+  setQuickSelection: (startX, startY, radius, tolerance = 40) => {
+    const doc = get().document;
+    const activeLayer = doc.layers.find((l) => l.id === doc.activeLayerId);
+    if (!activeLayer || !activeLayer.canvas) return;
+
+    const sampleCanvas = document.createElement("canvas");
+    sampleCanvas.width = doc.width;
+    sampleCanvas.height = doc.height;
+    const sampleCtx = sampleCanvas.getContext("2d");
+    if (!sampleCtx) return;
+
+    sampleCtx.clearRect(0, 0, doc.width, doc.height);
+    sampleCtx.drawImage(
+      activeLayer.canvas,
+      activeLayer.x,
+      activeLayer.y,
+      activeLayer.width,
+      activeLayer.height
+    );
+
+    const mask = createSelectionMaskFromState(doc.width, doc.height, get().selection, "add");
+    selectQuickBrush(mask, sampleCtx, startX, startY, radius, tolerance, "add");
+    const canvas = maskToCanvas(mask);
+
+    set({
+      selection: {
+        active: true,
+        maskCanvas: canvas,
+        bounds: {
+          x: Math.max(0, Math.round(startX - radius)),
+          y: Math.max(0, Math.round(startY - radius)),
+          width: Math.min(doc.width, Math.round(radius * 2)),
+          height: Math.min(doc.height, Math.round(radius * 2)),
+        },
+        feather: 0,
+      },
+    });
+  },
+
+
 
   clearSelection: () => {
     set({
@@ -1018,8 +1133,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     if (!sel.active || !sel.maskCanvas || !activeLayer || !activeLayer.canvas) return;
 
     get().pushHistory("Delete Selected Pixels");
-    deleteSelectedPixels(activeLayer.canvas, sel.maskCanvas);
-    set({ document: { ...doc } });
+    deleteSelectedPixels(activeLayer.canvas, selectionMaskForLayer(sel.maskCanvas, activeLayer));
+    const nextDoc = { ...doc };
+    set({ document: nextDoc });
+    saveDocumentToIDB(nextDoc);
   },
 
   selectionToLayerMask: () => {
@@ -1029,10 +1146,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     if (!sel.active || !sel.maskCanvas || !activeId) return;
 
     get().pushHistory("Selection to Layer Mask");
-    const maskCopy = document.createElement("canvas");
-    maskCopy.width = sel.maskCanvas.width;
-    maskCopy.height = sel.maskCanvas.height;
-    maskCopy.getContext("2d")?.drawImage(sel.maskCanvas, 0, 0);
+    const maskCopy = selectionMaskForLayer(sel.maskCanvas, doc.layers.find((l) => l.id === activeId) || doc.layers[0]);
 
     const newLayers = doc.layers.map((l) => {
       if (l.id === activeId) {
@@ -1059,12 +1173,17 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   // Perspective Homography
   initPerspectivePoints: () => {
     const doc = get().document;
+    const activeLayer = doc.layers.find((l) => l.id === doc.activeLayerId);
+    const layerX = activeLayer?.x || 0;
+    const layerY = activeLayer?.y || 0;
+    const layerW = activeLayer?.width || doc.width;
+    const layerH = activeLayer?.height || doc.height;
     set({
       perspectivePoints: [
-        { x: doc.width * 0.1, y: doc.height * 0.1 },
-        { x: doc.width * 0.9, y: doc.height * 0.1 },
-        { x: doc.width * 0.9, y: doc.height * 0.9 },
-        { x: doc.width * 0.1, y: doc.height * 0.9 },
+        { x: layerX + layerW * 0.1, y: layerY + layerH * 0.1 },
+        { x: layerX + layerW * 0.9, y: layerY + layerH * 0.1 },
+        { x: layerX + layerW * 0.9, y: layerY + layerH * 0.9 },
+        { x: layerX + layerW * 0.1, y: layerY + layerH * 0.9 },
       ],
     });
   },
@@ -1084,8 +1203,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const pts = get().perspectivePoints;
     if (!activeLayer || !activeLayer.canvas || !pts) return;
 
-    // Apply 4-corner perspective projective homography transformation
-    const rectified = rectifyPerspective(activeLayer.canvas, pts);
+    // The on-canvas handles are in document coordinates. Homography expects
+    // layer-local pixel coordinates, so translate them before rectification.
+    const localPts = pts.map((p) => ({
+      x: Math.max(0, Math.min(activeLayer.canvas!.width - 1, p.x - activeLayer.x)),
+      y: Math.max(0, Math.min(activeLayer.canvas!.height - 1, p.y - activeLayer.y)),
+    }));
+
+    const rectified = rectifyPerspective(activeLayer.canvas, localPts);
     activeLayer.canvas = rectified;
     activeLayer.width = rectified.width;
     activeLayer.height = rectified.height;

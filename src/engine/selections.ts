@@ -142,6 +142,64 @@ export function selectPolygon(
 }
 
 /**
+ * Quick Selection brush: selects color-similar pixels inside a circular brush.
+ * This provides a practical edge-aware selection primitive without replacing
+ * the editor's full-resolution image with a painted geometric mask.
+ */
+export function selectQuickBrush(
+  mask: SelectionMask,
+  imageCtx: CanvasRenderingContext2D,
+  centerX: number,
+  centerY: number,
+  radius: number,
+  tolerance: number = 40,
+  mode: "new" | "add" | "subtract" = "add"
+) {
+  if (mode === "new") mask.data.fill(0);
+
+  const width = mask.width;
+  const height = mask.height;
+  const imgData = imageCtx.getImageData(0, 0, width, height).data;
+  const cx = Math.max(0, Math.min(width - 1, Math.round(centerX)));
+  const cy = Math.max(0, Math.min(height - 1, Math.round(centerY)));
+  const r = Math.max(1, Math.round(radius));
+  const fillVal = mode === "subtract" ? 0 : 255;
+
+  const sourceIndex = (cy * width + cx) * 4;
+  const sr = imgData[sourceIndex];
+  const sg = imgData[sourceIndex + 1];
+  const sb = imgData[sourceIndex + 2];
+  const sa = imgData[sourceIndex + 3];
+  const tol = Math.max(1, tolerance);
+
+  const minX = Math.max(0, cx - r);
+  const maxX = Math.min(width - 1, cx + r);
+  const minY = Math.max(0, cy - r);
+  const maxY = Math.min(height - 1, cy + r);
+  const r2 = r * r;
+
+  for (let y = minY; y <= maxY; y++) {
+    const dy = y - cy;
+    for (let x = minX; x <= maxX; x++) {
+      const dx = x - cx;
+      if (dx * dx + dy * dy > r2) continue;
+
+      const idx = (y * width + x) * 4;
+      const difference = Math.max(
+        Math.abs(imgData[idx] - sr),
+        Math.abs(imgData[idx + 1] - sg),
+        Math.abs(imgData[idx + 2] - sb),
+        Math.abs(imgData[idx + 3] - sa)
+      );
+
+      if (difference <= tol) {
+        mask.data[y * width + x] = fillVal;
+      }
+    }
+  }
+}
+
+/**
  * Magic Wand selection: flood fill with color tolerance
  */
 export function selectMagicWand(

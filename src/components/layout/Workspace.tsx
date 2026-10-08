@@ -30,6 +30,7 @@ export const Workspace: React.FC = () => {
     setEllipseSelection,
     setPolygonSelection,
     setWandSelection,
+    setQuickSelection,
     setLayerTransform,
     importFile,
   } = useEditorStore();
@@ -54,7 +55,7 @@ export const Workspace: React.FC = () => {
 
   // For move tool layer dragging and interactive transform handles
   const [layerDragStart, setLayerDragStart] = useState<{ startX: number; startY: number; layerX: number; layerY: number } | null>(null);
-  type ResizeHandle = "nw" | "ne" | "sw" | "se";
+  type ResizeHandle = "nw" | "n" | "ne" | "e" | "se" | "s" | "sw" | "w";
   const [resizeHandle, setResizeHandle] = useState<ResizeHandle | null>(null);
   const resizeStartRef = useRef<{
     startX: number;
@@ -305,9 +306,10 @@ export const Workspace: React.FC = () => {
     // Pick / Move tool: select the topmost visible layer under the cursor,
     // then drag that layer. This is the editor's primary pick tool.
     if (activeTool === "move") {
-      const hit = [...doc.layers]
+      // Layers are stored top-to-bottom, so hit-test from the first visible
+      // layer to the last. Reversing this made backgrounds win over images.
+      const hit = doc.layers
         .filter((layer) => layer.visible && !layer.locked)
-        .reverse()
         .find((layer) =>
           x >= layer.x &&
           x <= layer.x + layer.width &&
@@ -336,8 +338,7 @@ export const Workspace: React.FC = () => {
     // Text tool: select an existing text layer instead of creating another one.
     // A double-click then enters inline editing mode.
     if (activeTool === "text") {
-      const hit = [...doc.layers]
-        .reverse()
+      const hit = doc.layers
         .find((layer) =>
           layer.type === "text" &&
           layer.visible &&
@@ -385,7 +386,7 @@ export const Workspace: React.FC = () => {
     }
 
     if (activeTool === "quick-selection") {
-      useEditorStore.getState().setEllipseSelection(x, y, brushSettings.size / 2, brushSettings.size / 2, "add");
+      setQuickSelection(x, y, brushSettings.size / 2, 40);
       return;
     }
 
@@ -420,43 +421,65 @@ export const Workspace: React.FC = () => {
       return;
     }
 
-    // Interactive resize: resize the active layer from the selected corner.
+    // Interactive resize: eight CorelDRAW-style nodes around the active object.
     if (resizeHandle && doc.activeLayerId && resizeStartRef.current) {
       const start = resizeStartRef.current;
       const dx = x - start.startX;
       const dy = y - start.startY;
       const preserveRatio = e.shiftKey;
       const ratio = start.width > 0 && start.height > 0 ? start.width / start.height : 1;
+      const minSize = 8;
 
       let nextX = start.layerX;
       let nextY = start.layerY;
       let nextW = start.width;
       let nextH = start.height;
 
-      if (resizeHandle === "se") {
-        nextW = Math.max(8, start.width + dx);
-        nextH = Math.max(8, start.height + dy);
-      } else if (resizeHandle === "sw") {
-        nextW = Math.max(8, start.width - dx);
-        nextH = Math.max(8, start.height + dy);
-        nextX = start.layerX + (start.width - nextW);
-      } else if (resizeHandle === "ne") {
-        nextW = Math.max(8, start.width + dx);
-        nextH = Math.max(8, start.height - dy);
-        nextY = start.layerY + (start.height - nextH);
-      } else {
-        nextW = Math.max(8, start.width - dx);
-        nextH = Math.max(8, start.height - dy);
-        nextX = start.layerX + (start.width - nextW);
-        nextY = start.layerY + (start.height - nextH);
+      switch (resizeHandle) {
+        case "nw":
+          nextW = Math.max(minSize, start.width - dx);
+          nextH = Math.max(minSize, start.height - dy);
+          nextX = start.layerX + start.width - nextW;
+          nextY = start.layerY + start.height - nextH;
+          break;
+        case "n":
+          nextH = Math.max(minSize, start.height - dy);
+          nextY = start.layerY + start.height - nextH;
+          break;
+        case "ne":
+          nextW = Math.max(minSize, start.width + dx);
+          nextH = Math.max(minSize, start.height - dy);
+          nextY = start.layerY + start.height - nextH;
+          break;
+        case "e":
+          nextW = Math.max(minSize, start.width + dx);
+          break;
+        case "se":
+          nextW = Math.max(minSize, start.width + dx);
+          nextH = Math.max(minSize, start.height + dy);
+          break;
+        case "s":
+          nextH = Math.max(minSize, start.height + dy);
+          break;
+        case "sw":
+          nextW = Math.max(minSize, start.width - dx);
+          nextH = Math.max(minSize, start.height + dy);
+          nextX = start.layerX + start.width - nextW;
+          break;
+        case "w":
+          nextW = Math.max(minSize, start.width - dx);
+          nextX = start.layerX + start.width - nextW;
+          break;
       }
 
-      if (preserveRatio) {
+      // Shift constrains corner resizing to the original aspect ratio.
+      if (preserveRatio && ["nw", "ne", "se", "sw"].includes(resizeHandle)) {
         if (Math.abs(dx) >= Math.abs(dy)) {
-          nextH = Math.max(8, nextW / ratio);
+          nextH = Math.max(minSize, nextW / ratio);
         } else {
-          nextW = Math.max(8, nextH * ratio);
+          nextW = Math.max(minSize, nextH * ratio);
         }
+
         if (resizeHandle === "nw" || resizeHandle === "sw") {
           nextX = start.layerX + start.width - nextW;
         }
@@ -514,6 +537,12 @@ export const Workspace: React.FC = () => {
       return;
     }
 
+    // Quick Selection behaves like a color-aware selection brush.
+    if (activeTool === "quick-selection") {
+      setQuickSelection(x, y, brushSettings.size / 2, 40);
+      return;
+    }
+
     // Lasso drawing
     if (activeTool === "lasso") {
       setLassoPoints((pts) => [...pts, { x, y }]);
@@ -526,8 +555,7 @@ export const Workspace: React.FC = () => {
   const handleDoubleClick = (e: React.MouseEvent) => {
     if (activeTool !== "text") return;
     const { x, y } = clientToDocCoords(e.clientX, e.clientY);
-    const hit = [...doc.layers]
-      .reverse()
+    const hit = doc.layers
       .find((layer) =>
         layer.type === "text" &&
         layer.visible &&
@@ -737,23 +765,35 @@ export const Workspace: React.FC = () => {
               height: activeLayer.height,
             }}
           >
-            {[ "nw", "ne", "sw", "se" ].map((handle) => {
-              const positionClass =
-                handle === "nw"
-                  ? "-top-2 -left-2"
-                  : handle === "ne"
-                    ? "-top-2 -right-2"
-                    : handle === "sw"
-                      ? "-bottom-2 -left-2"
-                      : "-bottom-2 -right-2";
-              const cursor =
-                handle === "nw" || handle === "se" ? "nwse-resize" : "nesw-resize";
+            {([
+              "nw", "n", "ne", "e", "se", "s", "sw", "w"
+            ] as const).map((handle) => {
+              const positionClass: Record<ResizeHandle, string> = {
+                nw: "-top-2 -left-2",
+                n: "-top-2 left-1/2 -translate-x-1/2",
+                ne: "-top-2 -right-2",
+                e: "top-1/2 -right-2 -translate-y-1/2",
+                se: "-bottom-2 -right-2",
+                s: "-bottom-2 left-1/2 -translate-x-1/2",
+                sw: "-bottom-2 -left-2",
+                w: "top-1/2 -left-2 -translate-y-1/2",
+              };
+              const cursor: Record<ResizeHandle, string> = {
+                nw: "nwse-resize",
+                n: "ns-resize",
+                ne: "nesw-resize",
+                e: "ew-resize",
+                se: "nwse-resize",
+                s: "ns-resize",
+                sw: "nesw-resize",
+                w: "ew-resize",
+              };
 
               return (
                 <div
                   key={handle}
-                  className={`absolute ${positionClass} w-4 h-4 sm:w-3 sm:h-3 bg-white border-2 border-cyan-600 rounded-sm pointer-events-auto touch-none`}
-                  style={{ cursor }}
+                  className={`absolute ${positionClass[handle]} w-4 h-4 sm:w-3 sm:h-3 bg-white border-2 border-cyan-600 rounded-sm pointer-events-auto touch-none`}
+                  style={{ cursor: cursor[handle] }}
                   role="button"
                   aria-label={`Resize ${handle} handle`}
                   onPointerDown={(e) => {
@@ -773,7 +813,7 @@ export const Workspace: React.FC = () => {
                       width: layer.width,
                       height: layer.height,
                     };
-                    setResizeHandle(handle as ResizeHandle);
+                    setResizeHandle(handle);
                     setIsPointerDown(true);
                     (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
                   }}

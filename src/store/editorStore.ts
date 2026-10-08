@@ -106,6 +106,7 @@ export interface EditorState {
   addRasterLayer: (name?: string) => void;
   addTextLayer: (x?: number, y?: number) => void;
   updateTextLayer: (id: string, props: Partial<TextProperties>) => void;
+  cropDocument: (x: number, y: number, width: number, height: number) => void;
   addAdjustmentLayer: (name: string, preset?: Partial<AdjustmentSettings>) => void;
   convertDocumentColorSpace: (targetSpace: SupportedColorSpace) => void;
   deleteLayer: (id: string) => void;
@@ -364,6 +365,42 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       },
     });
     saveDocumentToIDB(get().document);
+  },
+
+  cropDocument: (x, y, width, height) => {
+    const doc = get().document;
+    const cropX = Math.max(0, Math.min(Math.round(x), doc.width - 1));
+    const cropY = Math.max(0, Math.min(Math.round(y), doc.height - 1));
+    const cropW = Math.max(1, Math.min(Math.round(width), doc.width - cropX));
+    const cropH = Math.max(1, Math.min(Math.round(height), doc.height - cropY));
+    if (cropW < 2 || cropH < 2) return;
+
+    get().pushHistory("Crop Document");
+    const layers = doc.layers.map((layer) => ({
+      ...layer,
+      x: layer.x - cropX,
+      y: layer.y - cropY,
+    }));
+
+    const newDoc: PhotoDocument = {
+      ...doc,
+      width: cropW,
+      height: cropH,
+      layers,
+      zoom: 1,
+      panX: 0,
+      panY: 0,
+    };
+
+    const viewportWidth = Math.max(480, window.innerWidth - 420);
+    const viewportHeight = Math.max(320, window.innerHeight - 150);
+    newDoc.zoom = Math.max(
+      0.05,
+      Math.min(1, viewportWidth / cropW, viewportHeight / cropH)
+    );
+
+    set({ document: newDoc });
+    saveDocumentToIDB(newDoc);
   },
 
   addAdjustmentLayer: (name, preset) => {

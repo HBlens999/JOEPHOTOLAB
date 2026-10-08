@@ -174,6 +174,36 @@ export const ToolOptionsBar: React.FC = () => {
         </div>
       )}
 
+      {/* Pick / Move / Transform Options */}
+      {activeTool === "move" && activeLayer && (
+        <div className="flex items-center gap-3">
+          <span className="text-[11px] text-[#7a8192]">X</span>
+          <input type="number" value={Math.round(activeLayer.x)}
+            onChange={(e) => useEditorStore.getState().setLayerTransform(activeLayer.id, Number(e.target.value), activeLayer.y)}
+            className="w-16 bg-[#232733] border border-[#343a49] text-white rounded px-1.5 py-1" />
+          <span className="text-[11px] text-[#7a8192]">Y</span>
+          <input type="number" value={Math.round(activeLayer.y)}
+            onChange={(e) => useEditorStore.getState().setLayerTransform(activeLayer.id, activeLayer.x, Number(e.target.value))}
+            className="w-16 bg-[#232733] border border-[#343a49] text-white rounded px-1.5 py-1" />
+          <span className="text-[11px] text-[#7a8192]">W</span>
+          <input type="number" min="1" value={Math.round(activeLayer.width)}
+            onChange={(e) => useEditorStore.getState().setLayerTransform(activeLayer.id, activeLayer.x, activeLayer.y, Math.max(1, Number(e.target.value)), activeLayer.height)}
+            className="w-16 bg-[#232733] border border-[#343a49] text-white rounded px-1.5 py-1" />
+          <span className="text-[11px] text-[#7a8192]">H</span>
+          <input type="number" min="1" value={Math.round(activeLayer.height)}
+            onChange={(e) => useEditorStore.getState().setLayerTransform(activeLayer.id, activeLayer.x, activeLayer.y, activeLayer.width, Math.max(1, Number(e.target.value)))}
+            className="w-16 bg-[#232733] border border-[#343a49] text-white rounded px-1.5 py-1" />
+          <span className="text-[11px] text-[#7a8192]">Opacity</span>
+          <input type="range" min="0" max="1" step="0.01" value={activeLayer.opacity}
+            onChange={(e) => useEditorStore.getState().setLayerOpacity(activeLayer.id, Number(e.target.value))}
+            className="w-16 accent-cyan-500" />
+          <span className="text-[11px] text-[#7a8192]">Rotation</span>
+          <input type="number" value={Math.round(activeLayer.rotation)}
+            onChange={(e) => useEditorStore.getState().setLayerTransform(activeLayer.id, activeLayer.x, activeLayer.y, activeLayer.width, activeLayer.height, Number(e.target.value))}
+            className="w-14 bg-[#232733] border border-[#343a49] text-white rounded px-1.5 py-1" />
+        </div>
+      )}
+
       {/* Shape Tool Options */}
       {["shape-rect", "shape-ellipse"].includes(activeTool) && (
         <div className="flex items-center gap-3">

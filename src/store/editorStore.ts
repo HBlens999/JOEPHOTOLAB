@@ -850,11 +850,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       }
     }
 
+    const sourceOffsetX = sourceCanvas === activeLayer.canvas ? activeLayer.x : 0;
+    const sourceOffsetY = sourceCanvas === activeLayer.canvas ? activeLayer.y : 0;
+
     applyCloneStamp(
       ctx,
       sourceCanvas,
-      effSrcX,
-      effSrcY,
+      effSrcX - sourceOffsetX,
+      effSrcY - sourceOffsetY,
       destX - activeLayer.x,
       destY - activeLayer.y,
       {
@@ -905,11 +908,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       }
     }
 
+    const sourceOffsetX = sourceCanvas === activeLayer.canvas ? activeLayer.x : 0;
+    const sourceOffsetY = sourceCanvas === activeLayer.canvas ? activeLayer.y : 0;
+
     applyHealingBrush(
       ctx,
       sourceCanvas,
-      effSrcX,
-      effSrcY,
+      effSrcX - sourceOffsetX,
+      effSrcY - sourceOffsetY,
       destX - activeLayer.x,
       destY - activeLayer.y,
       {

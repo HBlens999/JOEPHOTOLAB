@@ -187,10 +187,13 @@ export class AIJob extends DurableObject<Env> {
     }
 
     if (request.method === "POST" && url.pathname === "/start") {
-      const job = await this.getJob();
+      const existing = await this.getJob();
+      const body = await request.json() as AIRequest & { __job?: JobRecord };
+      const job = existing || body.__job;
       if (!job) return json({ error: "Job not initialized" }, 404);
 
-      const input = await request.json() as AIRequest;
+      const { __job: _ignored, ...input } = body;
+      if (!existing) await this.ctx.storage.put("job", job);
       this.ctx.waitUntil(this.runJob(job, input));
       return json({ jobId: job.id, status: "queued" }, 202);
     }

@@ -1,0 +1,29 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "joephotolab",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-10-08",
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "AI_JOBS",
+        "class_name": "AIJob"
+      }
+    ]
+  },
+  "exports": {
+    "AIJob": {
+      "type": "durable-object",
+      "storage": "sqlite"
+    }
+  },
+  "secrets": {
+    "required": ["GEMINI_API_KEY"]
+  }
+}

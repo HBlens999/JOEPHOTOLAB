@@ -33,7 +33,9 @@ export const RightSidebar: React.FC = () => {
         <span>{mobileOpen ? "Close" : "Panels"}</span>
       </button>
 
-      <aside className={"app-right-sidebar w-80 bg-[#16181f]" + (mobileOpen ? " mobile-open" : "")} border-l border-[#252830] flex flex-col select-none shrink-0 z-20 h-full">
+      <aside
+        className={"app-right-sidebar w-80 bg-[#16181f] border-l border-[#252830] flex flex-col select-none shrink-0 z-20 h-full" + (mobileOpen ? " mobile-open" : "")}
+      >
       {/* Tab Navigation Header */}
       <div className="relative h-10 bg-[#13151b] border-b border-[#252830] flex items-center px-1 pr-8 text-xs text-[#8d94a5] shrink-0">
         <button

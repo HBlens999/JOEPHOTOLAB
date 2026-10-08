@@ -29,9 +29,16 @@ export const ToolOptionsBar: React.FC = () => {
     featherSelection,
     clearSelection,
     updateTextLayer,
+    textSettings,
+    setTextSettings,
   } = useEditorStore();
 
   const activeLayer = doc.layers.find((l) => l.id === doc.activeLayerId);
+  const textProps = activeLayer?.textProps ?? textSettings;
+  const updateTextProp = (props: Partial<typeof textProps>) => {
+    if (activeLayer?.type === "text" && activeLayer.textProps) updateTextLayer(activeLayer.id, props);
+    else setTextSettings(props);
+  };
 
   return (
     <div className="h-9 bg-[#191b22] border-b border-[#252830] flex items-center px-3 text-xs text-[#a6acbc] space-x-4 select-none shrink-0 overflow-x-auto">
@@ -217,12 +224,12 @@ export const ToolOptionsBar: React.FC = () => {
       )}
 
       {/* Text Tool Options */}
-      {activeTool === "text" && activeLayer?.textProps && (
+      {activeTool === "text" && (
         <div className="flex items-center gap-3">
           <span className="text-[11px] text-[#7a8192]">Font</span>
           <select
-            value={activeLayer.textProps.fontFamily}
-            onChange={(e) => updateTextLayer(activeLayer.id, { fontFamily: e.target.value })}
+            value={textProps.fontFamily}
+            onChange={(e) => updateTextProp({ fontFamily: e.target.value })}
             className="w-36 bg-[#232733] border border-[#343a49] text-[11px] text-white rounded px-2 py-1"
           >
             <option>Plus Jakarta Sans</option>
@@ -237,30 +244,30 @@ export const ToolOptionsBar: React.FC = () => {
             type="number"
             min={8}
             max={500}
-            value={activeLayer.textProps.fontSize}
-            onChange={(e) => updateTextLayer(activeLayer.id, { fontSize: Math.max(8, Number(e.target.value) || 8) })}
+            value={textProps.fontSize}
+            onChange={(e) => updateTextProp({ fontSize: Math.max(8, Number(e.target.value) || 8) })}
             className="w-16 bg-[#232733] border border-[#343a49] text-[11px] text-white rounded px-1.5 py-1 font-mono"
           />
           <input
             type="color"
-            value={activeLayer.textProps.fill}
-            onChange={(e) => updateTextLayer(activeLayer.id, { fill: e.target.value })}
+            value={textProps.fill}
+            onChange={(e) => updateTextProp({ fill: e.target.value })}
             title="Text color"
             className="w-6 h-6 rounded border border-[#343a49] bg-transparent cursor-pointer"
           />
           <button
-            onClick={() => updateTextLayer(activeLayer.id, { fontWeight: activeLayer.textProps?.fontWeight === "bold" ? "normal" : "bold" })}
-            className={`px-2 py-1 rounded font-bold ${activeLayer.textProps.fontWeight === "bold" ? "bg-cyan-600 text-white" : "bg-[#232733] text-slate-300"}`}
+            onClick={() => updateTextProp({ fontWeight: textProps.fontWeight === "bold" ? "normal" : "bold" })}
+            className={`px-2 py-1 rounded font-bold ${textProps.fontWeight === "bold" ? "bg-cyan-600 text-white" : "bg-[#232733] text-slate-300"}`}
             title="Bold"
           >B</button>
           <button
-            onClick={() => updateTextLayer(activeLayer.id, { fontStyle: activeLayer.textProps?.fontStyle === "italic" ? "normal" : "italic" })}
-            className={`px-2 py-1 rounded italic ${activeLayer.textProps.fontStyle === "italic" ? "bg-cyan-600 text-white" : "bg-[#232733] text-slate-300"}`}
+            onClick={() => updateTextProp({ fontStyle: textProps.fontStyle === "italic" ? "normal" : "italic" })}
+            className={`px-2 py-1 rounded italic ${textProps.fontStyle === "italic" ? "bg-cyan-600 text-white" : "bg-[#232733] text-slate-300"}`}
             title="Italic"
           >I</button>
           <select
-            value={activeLayer.textProps.align}
-            onChange={(e) => updateTextLayer(activeLayer.id, { align: e.target.value as "left" | "center" | "right" })}
+            value={textProps.align}
+            onChange={(e) => updateTextProp({ align: e.target.value as "left" | "center" | "right" })}
             className="bg-[#232733] border border-[#343a49] text-[11px] text-white rounded px-2 py-1"
             title="Text alignment"
           >
